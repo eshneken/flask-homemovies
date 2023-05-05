@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Home Movies</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  </head>
+  <body>
+    <section class="is-link is-fullheight">
+      <div class="hero-head">
+        <nav class="navbar">
+            <div class="container">
+                <div id="navbarMenuHeroA" class="navbar-menu">
+                    <div class="navbar-start">
+                        <a href="{{ url_for('home') }}" class="navbar-item">Home</a>
+                    </div>
+                    <div class="navbar-end">
+                      {% if current_user.is_authenticated %}
+                        <a href="{{ url_for('logout') }}" class="navbar-item">Logout</a>
+                      {% endif %}
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </div>
+
+    <div class="hero-body">
+      <div class="container">
+        {% block content %} {% endblock %}
+      </div> 
+    </div>
+
+  </section>
+ </body>
+</html>

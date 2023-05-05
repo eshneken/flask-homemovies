@@ -1,0 +1,7 @@
+oci
+flask==2.2
+flask-login
+python-dotenv
+argparse
+pytz
+datetime

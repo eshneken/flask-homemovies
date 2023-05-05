@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+ 
+{% block content %}
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="notification is-danger">
+                {{ messages[0] }}
+            </div>
+        {% endif %}
+        {% endwith %}
+
+  
+    <div class="tabs is-toggle">
+      <ul>
+      {% for section in sections %}
+        {% if section == session["active_tab"] %}
+          <li class="is-active">
+        {% else %}
+          <li>
+        {% endif %}
+        <a href="{{ url_for('home', tab=section) }}">
+          <span>{{ section }}</span>
+        </a>
+      </li>
+      {% endfor %}  
+    </ul>
+  </div>
+    <nav class="panel">
+    {% for section_object in section_objects %}
+      <a class="panel-block" href="{{ url_for('detail', name=section_object.name) }}">
+        <span class="panel-icon">
+          <i class="fas fa-book" aria-hidden="true"></i>
+        </span>
+        {{ section_object.display_name }}
+      </a>
+    {% endfor %} 
+  </nav>
+
+{% endblock %}
