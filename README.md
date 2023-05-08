@@ -23,6 +23,7 @@ usage:
 1. Either bucket, username, and password need to be passed in or the secret flag must be passed with the OCID of a compartment that contains an OCI Secret Vault that holds those three secrets
 
 # Preparing the local environment
+1. cd python_app (enter the code working directory)
 1. python3 -m venv ./.venv  (prepare the Python virtual environment)
 1. source ./.venv/bin/activate (activate the virtual environment)
 1. pip install -r requirements.txt (install all packages in virtual environment)

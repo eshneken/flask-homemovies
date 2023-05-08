@@ -2,7 +2,6 @@ import oci
 import sys
 import base64
 import argparse
-from service import create_app
 
 if __name__ == "__main__":
     # get variables from parser
