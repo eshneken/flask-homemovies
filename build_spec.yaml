@@ -25,3 +25,4 @@ outputArtifacts:
   - name: hm-docker-image
     type: DOCKER_IMAGE
     location: flask-homemovies:latest
+    
