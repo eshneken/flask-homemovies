@@ -22,6 +22,6 @@ steps:
       cd python_app
       docker build -t flask-homemovies .
 outputArtifacts:
-  - name: hm-docker-image-static
+  - name: hm-docker-image
     type: DOCKER_IMAGE
     location: flask-homemovies:latest
