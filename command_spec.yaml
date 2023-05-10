@@ -1,0 +1,21 @@
+version: 0.1
+component: command
+timeoutInSeconds: 10000
+shell: bash
+failImmediatelyOnError: true
+env:
+  variables:
+steps:
+  - type: Command
+    name: restart container instances
+    shell: bash
+    timeoutInSeconds: 3500
+    failImmediatelyOnError: true
+    command: |
+      echo "pass"
+
+    onFailure:
+      - type: Command
+        command: |
+          echo "Container Instance Restart Failed"
+        timeoutInSeconds: 400

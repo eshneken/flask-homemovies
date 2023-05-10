@@ -13,7 +13,14 @@ env:
   # exportedVariables are made available to use as parameters in sucessor Build Pipeline stages
   # For this Build to run, the Build Pipeline needs to have a BUILDRUN_HASH parameter set
   exportedVariables:
+    - BUILDRUN_HASH
 steps:
+  - type: Command
+    name: "Generate build tage"
+    timeoutInSeconds: 40
+    command: |
+      export BUILDRUN_HASH=`echo ${OCI_BUILD_RUN_ID} | rev | cut -c 1-7`
+      echo "BUILDRUN_HASH: " $BUILDRUN_HASH
   - type: Command
     timeoutInSeconds: 1200
     name: "Build container image"
@@ -25,3 +32,6 @@ outputArtifacts:
   - name: hm-docker-image
     type: DOCKER_IMAGE
     location: flask-homemovies:latest
+  - name: command_spec
+    type: BINARY
+    location: ${OCI_PRIMARY_SOURCE_DIR}/command_spec.yaml
