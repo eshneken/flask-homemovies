@@ -14,7 +14,7 @@ steps:
     failImmediatelyOnError: true
     command: |
       echo "Starting container instance restart"
-      oci container-instances container-instance restart --container-instance-id ${CONTAINER_INSTANCE_OCID} --auth instance_principal
+      oci container-instances container-instance restart --container-instance-id ${CONTAINER_INSTANCE_OCID} --auth resource_principal
       echo "Finishing container instance restart"
 
     onFailure:
