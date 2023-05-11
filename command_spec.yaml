@@ -12,10 +12,11 @@ steps:
     timeoutInSeconds: 3500
     failImmediatelyOnError: true
     command: |
-      echo "pass"
+      oci container-instances container-instance restart --container-instance-id ${CONTAINER_INSTANCE_OCID}
+      echo "container instance restarted"
 
     onFailure:
       - type: Command
         command: |
-          echo "Container Instance Restart Failed"
+          echo "Container Instance Restart"
         timeoutInSeconds: 400
