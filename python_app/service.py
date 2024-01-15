@@ -111,12 +111,12 @@ def create_app(cmd, os_client, namespace):
         if session_id:
             try:
                 is_authenticated = authenticated[session_id]
-                logging.debug("check_auth:is_authenticated: " + is_authenticated)
+                logging.debug("check_auth:is_authenticated: " + str(is_authenticated))
                 if is_authenticated:
                     login_user(User(cmd.username))
             except:
                 is_authenticated = False
-                logging.debug("check_auth:is_authenticated: " + is_authenticated)
+                logging.debug("check_auth:is_authenticated: " + str(is_authenticated))
         return jsonify(is_authenticated=is_authenticated)
 
     @app.route('/authenticate', methods=['GET'])
