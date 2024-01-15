@@ -2,6 +2,7 @@ import oci
 import sys
 import base64
 import argparse
+from flask_qrcode import QRcode
 from service import create_app
 
 if __name__ == "__main__":
@@ -86,7 +87,7 @@ if __name__ == "__main__":
     namespace = os_client.get_namespace(retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
 
     if not (cmd.username and cmd.password):
-        print("Username and password parameters are required. Pass in as arguments or dervie from a secret.\n")
+        print("Username and password parameters are required. Pass in as arguments or derive from a secret.\n")
         parser.print_help()
         raise SystemExit
 
@@ -95,8 +96,9 @@ if __name__ == "__main__":
         parser.print_help()
         raise SystemExit
 
-    # create and run the flask app
+    # create flask app, enable QR generation, and run
     app = create_app(cmd, os_client, namespace)
+    QRcode(app)
     app.run(host="0.0.0.0", port=5000)
 
 

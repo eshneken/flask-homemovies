@@ -3,8 +3,8 @@
 {% block content %}
 <div class="columns is-multiline">
 
-    <div class="column is-4 is-half">
-        <h3 class="title">Web Login</h3>
+    <div class="column is-4">
+        <h3 class="title">Remote Device Authentication</h3>
         <div class="box">
             {% with messages = get_flashed_messages() %}
             {% if messages %}
@@ -13,7 +13,7 @@
                 </div>
             {% endif %}
             {% endwith %}
-            <form method="POST" action="/login">
+            <form method="POST" action="/authenticate">
                 <div class="field">
                     <div class="control">
                         <input class="input is-large" type="username" name="username" placeholder="Your Username" autofocus="">
@@ -25,34 +25,13 @@
                         <input class="input is-large" type="password" name="password" placeholder="Your Password">
                     </div>
                 </div>
+
+                <input type="hidden" id="session_id" name="session_id" value="{{session_id}}">
+
                 <button class="button is-block is-info is-large is-fullwidth">Login</button>
             </form>
         </div>
     </div>
-
-    <div class="column is-4 is-half">
-        <h3 class="title">Mobile Login</h3>
-            <div class="box is-flex is-justify-content-center">
-                <img src="{{ qrcode(target_url) }}">
-            </div>
-    </div>
-
 </div>
-
-<script>
-    function checkAuth() {
-        // Perform an XHR request to check authentication
-        fetch('/check_auth?session_id={{session_id}}')
-            .then(response => response.json())
-            .then(data => {
-                if (data.is_authenticated) {
-                    window.location.href = '/';
-                }
-            });
-    }
-
-    // Periodically check for async auth
-    setInterval(checkAuth, 5000);
-</script>
 
 {% endblock %}

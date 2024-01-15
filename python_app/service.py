@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, redirect, flash, url_for, session, app
+from flask import Flask, render_template, request, redirect, flash, jsonify, url_for, session, app
 from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin
 from datetime import datetime, timedelta
 import pytz
 import oci
 import secrets
+import uuid
 
 def create_app(cmd, os_client, namespace):
     app = Flask(__name__)
@@ -18,6 +19,8 @@ def create_app(cmd, os_client, namespace):
     def load_user(username):
         return User(username)
     
+    authenticated = {}
+
     @app.route('/')
     @login_required
     def home():
@@ -96,9 +99,41 @@ def create_app(cmd, os_client, namespace):
         
         return render_template('detail.html', par_url=par_url, video_name=display_name)
     
+    @app.route('/check_auth')
+    def check_auth():
+        is_authenticated = False
+        session_id = request.args.get('session_id')
+        if session_id:
+            try:
+                is_authenticated = authenticated[session_id]
+                if is_authenticated:
+                    login_user(User(cmd.username))
+            except:
+                is_authenticated = False
+        return jsonify(is_authenticated=is_authenticated)
+
+    @app.route('/authenticate', methods=['GET'])
+    def authenticate():
+        session_id = request.args.get('session_id')
+        return render_template('auth.html', session_id=session_id)
+    
+    @app.route('/authenticate', methods=['POST'])
+    def authenticate_post():
+        session_id = request.form.get('session_id')
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if username == cmd.username and password == cmd.password and session_id and session_id in authenticated:
+            authenticated[session_id]=True
+            print("Success authenticating id: " + session_id)
+            return render_template("auth_result.html", result="Success. Your viewing device should refresh momentarily. ")
+        return render_template("auth_result.html", result="Unable to authenticate. Please check your head and try again.")
+
     @app.route('/login', methods=['GET'])
     def login():
-        return render_template('login.html')
+        session_id = str(uuid.uuid4())
+        authenticated[session_id]=False
+        target_url = request.url_root + url_for("authenticate") + "?session_id=" + session_id
+        return render_template('login.html', target_url=target_url, session_id=session_id)
 
     @app.route('/login', methods=['POST'])
     def login_post():
