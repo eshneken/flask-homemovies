@@ -5,6 +5,8 @@ import pytz
 import oci
 import secrets
 import uuid
+import logging
+import sys
 
 def create_app(cmd, os_client, namespace):
     app = Flask(__name__)
@@ -20,6 +22,8 @@ def create_app(cmd, os_client, namespace):
         return User(username)
     
     authenticated = {}
+    
+    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
     @app.route('/')
     @login_required
@@ -37,8 +41,8 @@ def create_app(cmd, os_client, namespace):
                     break
             except Exception as e:
                 flash('Error interacting with video repository')
-                print("Error fetching object list: ")
-                print(e)
+                logging.debug("Error fetching object list: ")
+                logging.debug(e)
                 return render_template('home.html', sections=[], section_objects=[])
 
         keys = movie_list.keys()
@@ -93,8 +97,8 @@ def create_app(cmd, os_client, namespace):
             par_url = cmd.os_endpoint + par_response.data.access_uri
         except Exception as e:
                 flash('Error interacting with video repository')
-                print("Error listing/creating PARs: ")
-                print(e)
+                logging.debug("Error listing/creating PARs: ")
+                logging.debug(e)
                 return render_template('home.html', sections=[], section_objects=[])
         
         return render_template('detail.html', par_url=par_url, video_name=display_name)
@@ -103,9 +107,11 @@ def create_app(cmd, os_client, namespace):
     def check_auth():
         is_authenticated = False
         session_id = request.args.get('session_id')
+        logging.debug("id: " + session_id)
         if session_id:
             try:
                 is_authenticated = authenticated[session_id]
+                logging.debug("is_authenticated: " + is_authenticated)
                 if is_authenticated:
                     login_user(User(cmd.username))
             except:
@@ -124,7 +130,7 @@ def create_app(cmd, os_client, namespace):
         password = request.form.get('password')
         if username == cmd.username and password == cmd.password and session_id and session_id in authenticated:
             authenticated[session_id]=True
-            print("Success authenticating id: " + session_id)
+            logging.info("Success authenticating id: " + session_id)
             return render_template("auth_result.html", result="Success. Your viewing device should refresh momentarily. ")
         return render_template("auth_result.html", result="Unable to authenticate. Please check your head and try again.")
 
@@ -185,7 +191,7 @@ def create_app(cmd, os_client, namespace):
             video = {"name": object_file.name, "display_name": display_name}
             movie_list[dir].append(video)
         except Exception as e:
-            print("add_object error: " + str(e))
+            logging.error("add_object error: " + str(e))
 
         return movie_list
     
