@@ -105,6 +105,7 @@ def create_app(cmd, os_client, namespace):
     
     @app.route('/check_auth')
     def check_auth():
+        global authenticated
         is_authenticated = False
         session_id = request.args.get('session_id')
         logging.debug("check_auth:id: " + session_id)
@@ -126,6 +127,7 @@ def create_app(cmd, os_client, namespace):
     
     @app.route('/authenticate', methods=['POST'])
     def authenticate_post():
+        global authenticated
         session_id = request.form.get('session_id')
         username = request.form.get('username')
         password = request.form.get('password')
@@ -138,6 +140,7 @@ def create_app(cmd, os_client, namespace):
 
     @app.route('/login', methods=['GET'])
     def login():
+        global authenticated
         session_id = str(uuid.uuid4())
         authenticated[session_id]=False
         target_url = request.url_root + url_for("authenticate") + "?session_id=" + session_id
