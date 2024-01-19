@@ -42,10 +42,7 @@
 <script>
     function checkAuth() {
         // Perform an XHR request to check authentication
-        fetch('/check_auth?session_id={{session_id}}',{ 
-            method: 'get', 
-            mode: 'cors'
-            })
+        fetch('/check_auth?session_id={{session_id}}')
             .then(response => response.json())
             .then(data => {
                 if (data.is_authenticated) {
