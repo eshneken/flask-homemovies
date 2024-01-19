@@ -7,6 +7,7 @@ import secrets
 import uuid
 import logging
 import sys
+import json
 
 def create_app(cmd, os_client, namespace):
     app = Flask(__name__)
@@ -108,6 +109,7 @@ def create_app(cmd, os_client, namespace):
         is_authenticated = False
         session_id = request.args.get('session_id')
         logging.debug("check_auth:id: " + session_id)
+        logging.debug("DICT: " + json.dumps(authenticated, indent=2))
         if session_id:
             try:
                 is_authenticated = authenticated[session_id]
@@ -129,7 +131,7 @@ def create_app(cmd, os_client, namespace):
         session_id = request.form.get('session_id')
         username = request.form.get('username')
         password = request.form.get('password')
-        logging.debug("authenticate_post:" + str(session_id)+":"+username+":"+"password")
+        logging.debug("authenticate_post:" + str(session_id)+":"+username+":"+password)
         if username == cmd.username and password == cmd.password and session_id and session_id in authenticated:
             authenticated[session_id]=True
             logging.info("Success authenticating id: " + session_id)
