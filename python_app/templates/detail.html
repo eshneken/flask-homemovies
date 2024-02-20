@@ -3,7 +3,7 @@
 {% block content %}
   <div class="top-pad">
     <h1>{{ video_name }}</h1>
-    <video controls width="100%" height="auto" controls autoplay name="{{ video_name }}" media">
+    <video controls width="100%" height="auto" controls preload="auto" name="{{ video_name }}" media">
         <source src="{{ par_url }}" type="video/mp4">
     </video>
   </div>
