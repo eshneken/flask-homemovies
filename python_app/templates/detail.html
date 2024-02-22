@@ -3,7 +3,7 @@
 {% block content %}
   <div class="top-pad">
     <h1>{{ video_name }}</h1>
-
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
     <video id="player" class="video-js vjs-default-skin vjs-fluid" controls preload>
       <source src="{{ par_url }}" type="{{ encoding_type }}">
     </video>
