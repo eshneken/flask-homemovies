@@ -29,15 +29,27 @@ def create_app(cmd, os_client, namespace):
     @app.route('/')
     @login_required
     def home():
-        # collect objects in bucket
+        #
+        # movie list is a dictionary of top level directories with an array of json objects of 
+        # object paths and display names.  Example:
+        # movie_list["folder1"] = [{name=foo1, display_name=bar1}, {name=foo2, display_name=bar2}]
+        # movie_list["folder2"] = [{name=foo3, display_name=bar3}]
+        #
         movie_list = {}
+
+        #
+        # exclude_list is a list that contains prefixes that we want to exclude from further file
+        # processing.  this is because we want to represent a single entry for an HLS folder tied to the
+        # the output.m3u8 playlist and not all of the underlying segment files
+        exclude_list = []
+
         next_starts_with = None
         while True:
             try:
                 response = os_client.list_objects(namespace, cmd.bucket, start=next_starts_with, prefix="", fields='size,timeCreated,timeModified,storageTier', retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY)
                 next_starts_with = response.data.next_start_with
                 for object_file in response.data.objects:  
-                    movie_list = add_object(movie_list, object_file)  
+                    movie_list, exclude_list = add_object(movie_list, exclude_list, object_file)  
                 if not next_starts_with:
                     break
             except Exception as e:
@@ -63,6 +75,9 @@ def create_app(cmd, os_client, namespace):
     @app.route('/movie')
     @login_required
     def detail():
+        # handle output differently depending on whether movie is HLS or not
+        is_hls = False
+
         # get name from request
         name = request.args.get("name")
         if name is None or len(name) < 5:
@@ -72,6 +87,10 @@ def create_app(cmd, os_client, namespace):
         # strip folder name and suffix to build display name
         try:
             display_name = name.split("/",1)[1].rsplit(".", 1)[0]
+            prefix = name.rsplit("/",1)[0] + "/"
+            if ".hls" in display_name:
+                is_hls = True
+                display_name = display_name.split(".")[0]
         except:
             display_name = "Name not paresable"
 
@@ -90,19 +109,26 @@ def create_app(cmd, os_client, namespace):
             cmd.bucket,
             create_preauthenticated_request_details=oci.object_storage.models.CreatePreauthenticatedRequestDetails(
                 name=name + str(expiry_time),
-                access_type="ObjectRead",
+                access_type="AnyObjectRead",
                 time_expires=expiry_time,
-                bucket_listing_action="Deny",
-                object_name=name))
+                bucket_listing_action="Deny"
+                ))
             
-            par_url = cmd.os_endpoint + par_response.data.access_uri
+            par_url = cmd.os_endpoint + par_response.data.access_uri + name
         except Exception as e:
                 flash('Error interacting with video repository')
                 logging.debug("Error listing/creating PARs: ")
                 logging.debug(e)
                 return render_template('home.html', sections=[], section_objects=[])
         
-        return render_template('detail.html', par_url=par_url, video_name=display_name)
+        # set the encoding type depending on whether this is HLS or not
+        if is_hls:
+            encoding_type = "application/x-mpegURL"
+        else:
+            encoding_type = "video/mp4"
+
+        # render the template
+        return render_template('detail.html', par_url=par_url, video_name=display_name, encoding_type=encoding_type)
     
     @app.route('/check_auth')
     def check_auth():
@@ -173,7 +199,7 @@ def create_app(cmd, os_client, namespace):
         session.permanent = True
         app.permanent_session_lifetime = timedelta(minutes=120)
 
-    def add_object(movie_list, object_file):
+    def add_object(movie_list, exclude_list, object_file):
         try:
             # decode directory and filename
             split_str = object_file.name.split("/", 1)
@@ -182,22 +208,37 @@ def create_app(cmd, os_client, namespace):
 
             # if there is no file we just got a directory from os; ignore
             if len(name) < 1:
-                return movie_list
+                return movie_list, exclude_list
             
+            # check the name to see if it contains a directory in the exclude_list
+            # if it does, it means we have already processed the playlist and this is just
+            # a segment file which means that we should skip it
+            if ".hls" in name:
+                name_split = name.split(".")
+                if name_split[0] in exclude_list:
+                    return movie_list, exclude_list
+                
             # check to see if directory exists in dictionary.  if not create
             if not dir in movie_list:
                 movie_list[dir] = []
 
-            # get a display name without the file type
-            display_name = name.rsplit(".", 1)[0]
+            if ".hls" in name:
+                object_name = object_file.name + "output.m3u8"
+                # get a display name without the extension
+                display_name = name.rsplit(".", 1)[0]
+                exclude_list.append(display_name)
+            else:
+                object_name = object_file.name
+                # get a display name without the extension
+                display_name = name.rsplit(".", 1)[0]
             
             # build video object and append to the right heading
-            video = {"name": object_file.name, "display_name": display_name}
+            video = {"name": object_name, "display_name": display_name}
             movie_list[dir].append(video)
         except Exception as e:
             logging.error("add_object error: " + str(e))
 
-        return movie_list
+        return movie_list, exclude_list
     
     return app
 

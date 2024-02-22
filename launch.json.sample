@@ -4,7 +4,7 @@
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
-            "program": "app.py",
+            "program": "python_app/app.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": ["--secret", "ocid1.compartment.oc1..abc123"]

@@ -3,8 +3,17 @@
 {% block content %}
   <div class="top-pad">
     <h1>{{ video_name }}</h1>
-    <video controls width="100%" height="auto" controls preload="auto" name="{{ video_name }}" media">
-        <source src="{{ par_url }}" type="video/mp4">
+    <link href="http://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
+
+    <video id="player" class="video-js vjs-default-skin vjs-fluid" controls preload>
+      <source src="{{ par_url }}" type="{{ encoding_type }}">
     </video>
+
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/8.10.0/videojs-contrib-hls.min.js"></script>
+    <script>
+        var player = videojs('player', {fluid: true, enableSmoothSeeking: true, disablePictureInPicture: true});
+        player.play();
+    </script>
   </div>
 {% endblock %}
