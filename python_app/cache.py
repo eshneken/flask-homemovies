@@ -1,16 +1,17 @@
+from redis import Redis
 
 #
 # Abstract base class for cache implementations
 #
 class CacheProvider:
     def __str(self):
-        return f"Cache provider"
+        return "Cache provider"
 
 #
 # Local cache provider using an in-memory dictionary
 #
 class LocalCacheProvider(CacheProvider):
-    def __init__(self):
+    def __init__(self, hostname):
         self.authenticated = {}
 
     def get_authenticated_dict(self) -> dict[str, bool]:
@@ -29,8 +30,28 @@ class LocalCacheProvider(CacheProvider):
 # Cache provider leveraging OCI Redis Service
 #
 class RedisCacheProvider(CacheProvider):
-    def get_authenticated_dict(self):
-        pass
+    def __init__(self, hostname):
+        self.redis = Redis(host=hostname, port=6379, port=6379, ssl=True, ssl_cert_reqs="none", decode_responses=True)
+
+    def get_authenticated_dict(self) -> dict[str, bool]:
+        cache_contents = {}
+        keys = self.redis.keys("auth:*")
+        for key in keys:
+            value = self.redis.get(key)
+            cache_contents[key] = value
+        return cache_contents
+    
+    def set_authenticated(self, session_id: str, value: bool):
+        self.redis.setex(f"auth:{session_id}", 60*15, str(value))
+
+    def get_authenticated(self, session_id: str) -> bool:
+        return bool(self.redis.get(f"auth:{session_id}"))
+    
+    def is_session_in_authenticated(self, session_id: str) -> bool:
+        if self.redis.exists(f"auth:{session_id}"):
+            return True
+        else:
+            return False
 
 #
 # Factory to return appropriate cache based on input type

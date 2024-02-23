@@ -23,8 +23,9 @@ def create_app(cmd, os_client, namespace):
     def load_user(username):
         return User(username)
 
-    # instantiate a cache for handling authentication and sharing functionality    
-    cache = CacheProviderFactory.get_cache_provider("local")
+    # instantiate a cache for handling authentication and sharing functionality 
+    hostname = "amaaaaaabxdvnfaa33usuilfzcasarkcjte3igp6qz3zzb4mocrl6q3nuvfq-p.redis.us-ashburn-1.oci.oraclecloud.com"   
+    cache = CacheProviderFactory.get_cache_provider("local", hostname)
 
     # instantiate a logger
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
