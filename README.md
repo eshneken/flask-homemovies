@@ -30,7 +30,7 @@ usage:
 1. docker build -t flask-homemovies . (optionally build if you plan to run with docker)
 
 # Running locally
-1. Make sure you have an OCI config file at [~/.ici/config](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliconfigure.htm).  
+1. Make sure you have an OCI config file at [~/.oci/config](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliconfigure.htm).  
 2. Most likely you will pass --bucket, --username, --password or alternatively can simply use --secret
 3. Debugging can be done in VSCode, sample launch.json.template can be modified and renamed launch.json
 4. To run locally with docker:  docker run --mount type=bind,source=$HOME/.oci,target=/root/.oci flask-homemovies --bucket $bname --username $uname --password $pwd

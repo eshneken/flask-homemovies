@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, flash, jsonify, url_for, session, app
 from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin
 from datetime import datetime, timedelta
+from cache import CacheProviderFactory, LocalCacheProvider, RedisCacheProvider
 import pytz
 import oci
 import secrets
@@ -21,9 +22,11 @@ def create_app(cmd, os_client, namespace):
     @login_manager.user_loader
     def load_user(username):
         return User(username)
-    
-    authenticated = {}
-    
+
+    # instantiate a cache for handling authentication and sharing functionality    
+    cache = CacheProviderFactory.get_cache_provider("local")
+
+    # instantiate a logger
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
     @app.route('/')
@@ -135,10 +138,10 @@ def create_app(cmd, os_client, namespace):
         is_authenticated = False
         session_id = request.args.get('session_id')
         logging.debug("check_auth:id: " + session_id)
-        logging.debug("DICT: " + json.dumps(authenticated, indent=2))
+        logging.debug("DICT: " + json.dumps(cache.get_authenticated_dict(), indent=2))
         if session_id:
             try:
-                is_authenticated = authenticated[session_id]
+                is_authenticated = cache.get_authenticated(session_id)
                 logging.debug("check_auth:is_authenticated: " + str(is_authenticated))
                 if is_authenticated:
                     login_user(User(cmd.username))
@@ -158,8 +161,8 @@ def create_app(cmd, os_client, namespace):
         username = request.form.get('username')
         password = request.form.get('password')
         logging.debug("authenticate_post:" + str(session_id)+":"+username+":"+password)
-        if username == cmd.username and password == cmd.password and session_id and session_id in authenticated:
-            authenticated[session_id]=True
+        if username == cmd.username and password == cmd.password and session_id and cache.is_session_in_authenticated(session_id):
+            cache.set_authenticated(session_id, True)
             logging.info("Success authenticating id: " + session_id)
             return render_template("auth_result.html", result="Success. Your viewing device should refresh momentarily. ")
         return render_template("auth_result.html", result="Unable to authenticate. Please check your head and try again.")
@@ -167,7 +170,7 @@ def create_app(cmd, os_client, namespace):
     @app.route('/login', methods=['GET'])
     def login():
         session_id = str(uuid.uuid4())
-        authenticated[session_id]=False
+        cache.set_authenticated(session_id, False)
         target_url = request.url_root + url_for("authenticate") + "?session_id=" + session_id
         return render_template('login.html', target_url=target_url, session_id=session_id)
 
