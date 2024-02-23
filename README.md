@@ -44,3 +44,44 @@ usage:
 1. Make sure dynamic groups and policies have been defined
 1. docker run flask-homemovies --bucket $bname --username $uname --password $pwd --instance_principal (run in docker with instance principal permissions)
 
+# Object Storage Configuration
+
+All of the movies are served from OCI object storage.  Structuring the bucket following conventions described here is critical to the code functioning properly.
+
+1. The bucket should have 1 level of directories which will serve the top level navigation.  There can be only one level of navigation.
+1. Individual files should be put in these buckets with the appropriate extensions (e.g. .mp4, .avi, .mov)
+1. For streaming 4K using adaptive bitrate you will need to generate an HLS directory consisting of a playlist (output.m3u8) and multiple segment files (output000.ts, output001.ts, etc).
+1. An HLS directory must be uploaded to object storage into an object storage folder and the title of the folder must end with .hls
+1. The HLS playlist file must be named output.m3u8.  Although segments can be named something else since they are referenced in the playlist, it is recommended to follow the HLS generation sample command below.
+
+Here is a sample of what this might look like:
+
+![folder structure](folder_structure.png)
+
+# HLS Directory Generation
+
+Converting a 4K mp4 to HLS can be accomplished using the [FFMPEG](https://ffmpeg.org) tool.  Here is a sample command used to generate the HLS output:
+
+    ffmpeg -i input.mp4 \
+        -vf "scale=-2:2160" \  # Video filter to scale the video to a height of 2160 pixels (4K resolution)
+        -c:v libx264 \          # Video codec to encode the video using H.264 codec
+        -x264opts "keyint=24:min-keyint=24:no-scenecut" \  # Options for the x264 encoder
+        -b:v 8000k \            # Target video bitrate (8 Mbps)
+        -maxrate 10000k \       # Maximum video bitrate (10 Mbps)
+        -bufsize 20000k \       # Buffer size for the video bitrate control
+        -c:a aac \              # Audio codec to encode the audio using AAC codec
+        -ac 2 \                 # Set the number of audio channels to stereo
+        -b:a 128k \             # Target audio bitrate (128 kbps)
+        -hls_time 4 \           # Duration of each HLS segment (4 seconds)
+        -hls_playlist_type vod \# HLS playlist type (Video On Demand)
+        output.m3u8             # Output HLS playlist file
+
+# Uploading HLS Directory to Object Storage
+
+An HLS directory may contain thousands of files.  The easiest way to upload it and map it to the proper folder (prefix) is to use the OCI CLI's bulk-upload command.
+
+For example, if we follow the example above and assume the object storage namespace is 'MyNamespace' the command would look like this:
+
+    oci os object bulk-upload -ns MyNamespace -bn MyMovies --src-dir . --prefix "2022.hls/"
+
+You will need to replace MyNamespace, MyMovies, and the directory name (2022.hls) with your own values.  Make sure the folder is already created inside OCI and you are running this command from the folder with the playlist and segments.
