@@ -4,8 +4,8 @@ from redis import Redis
 # Abstract base class for cache implementations
 #
 class CacheProvider:
-    def __str(self):
-        return "Cache provider"
+    def __str(self, hostname):
+        return "Cache provider: " + hostname
 
 #
 # Local cache provider using an in-memory dictionary
@@ -31,7 +31,7 @@ class LocalCacheProvider(CacheProvider):
 #
 class RedisCacheProvider(CacheProvider):
     def __init__(self, hostname):
-        self.redis = Redis(host=hostname, port=6379, port=6379, ssl=True, ssl_cert_reqs="none", decode_responses=True)
+        self.redis = Redis(host=hostname, port=6379, ssl=True, ssl_cert_reqs="none", decode_responses=True)
 
     def get_authenticated_dict(self) -> dict[str, bool]:
         cache_contents = {}
@@ -58,10 +58,10 @@ class RedisCacheProvider(CacheProvider):
 #
 class CacheProviderFactory:
     @staticmethod
-    def get_cache_provider(provider_type):
+    def get_cache_provider(provider_type, hostname):
         if provider_type == 'local':
-            return LocalCacheProvider()
+            return LocalCacheProvider(hostname)
         elif provider_type == 'cloud':
-            return RedisCacheProvider()
+            return RedisCacheProvider(hostname)
         else:
             raise ValueError("Invalid cache provider type: must be local or cloud")
