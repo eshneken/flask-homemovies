@@ -8,10 +8,12 @@ usage:
 
     options:
     -h, --help                show this help message and exit
+    --local_cache             Use local (in-process) cache instead of OCI Cache Service with Redis
     --instance_principal      Use Instance Principals for Authentication
     --resource_principal      Use Resource Principals for Authentication
     --secret SECRET           OCID of compartment with secrets vault
     --bucket BUCKET           Bucket Name
+    --redis-url REDIS_URL     OCI Cache Service with Redis Endpoint
     --os_endpoint OS_ENDPOINT Object Storage Endpoint
     --username USERNAME       Username
     --password PASSWORD       Password
@@ -85,3 +87,7 @@ For example, if we follow the example above and assume the object storage namesp
     oci os object bulk-upload -ns MyNamespace -bn MyMovies --src-dir . --prefix "2022.hls/"
 
 You will need to replace MyNamespace, MyMovies, and the directory name (2022.hls) with your own values.  Make sure the folder is already created inside OCI and you are running this command from the folder with the playlist and segments.
+
+# Setting up auto-renewing certificates on OCI
+
+https://blog.johnnybytes.com/how-to-use-and-renew-ssl-certificates-on-oracle-cloud-oci-load-balancers-3c3b4c72c136

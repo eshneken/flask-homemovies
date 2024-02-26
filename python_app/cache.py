@@ -14,7 +14,7 @@ class LocalCacheProvider(CacheProvider):
     def __init__(self, hostname):
         self.authenticated = {}
 
-    def get_authenticated_dict(self) -> dict[str, bool]:
+    def get_authenticated_dict(self):
         return self.authenticated
     
     def set_authenticated(self, session_id: str, value: bool):
@@ -33,7 +33,7 @@ class RedisCacheProvider(CacheProvider):
     def __init__(self, hostname):
         self.redis = Redis(host=hostname, port=6379, ssl=True, ssl_cert_reqs="none", decode_responses=True)
 
-    def get_authenticated_dict(self) -> dict[str, bool]:
+    def get_authenticated_dict(self):
         cache_contents = {}
         keys = self.redis.keys("auth:*")
         for key in keys:
@@ -45,7 +45,11 @@ class RedisCacheProvider(CacheProvider):
         self.redis.setex(f"auth:{session_id}", 60*15, str(value))
 
     def get_authenticated(self, session_id: str) -> bool:
-        return bool(self.redis.get(f"auth:{session_id}"))
+        result = self.redis.get(f"auth:{session_id}").lower()
+        if result == "true":
+            return True
+        else:
+            return False
     
     def is_session_in_authenticated(self, session_id: str) -> bool:
         if self.redis.exists(f"auth:{session_id}"):

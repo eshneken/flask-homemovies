@@ -22,13 +22,21 @@ def create_app(cmd, os_client, namespace):
     @login_manager.user_loader
     def load_user(username):
         return User(username)
-
-    # instantiate a cache for handling authentication and sharing functionality 
-    hostname = "amaaaaaabxdvnfaa33usuilfzcasarkcjte3igp6qz3zzb4mocrl6q3nuvfq-p.redis.us-ashburn-1.oci.oraclecloud.com"   
-    cache = CacheProviderFactory.get_cache_provider("local", hostname)
-
+    
     # instantiate a logger
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+
+    # instantiate a cache for handling authentication and sharing functionality
+    # depending on arguments passed this will either be a local in-memory cache
+    # or will connect to an OCI Cache Service with Redis instance
+    cache_type = "cloud"
+    hostname = "local"
+    if cmd.use_local_cache:
+        cache_type = "local"
+    else:
+        hostname = cmd.redis_url
+    logging.info(f"Using cache type '{cache_type}' with hostname '{hostname}'")
+    cache = CacheProviderFactory.get_cache_provider(cache_type, hostname)
 
     @app.route('/')
     @login_required

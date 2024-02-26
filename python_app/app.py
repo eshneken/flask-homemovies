@@ -8,11 +8,13 @@ from service import create_app
 if __name__ == "__main__":
     # get variables from parser
     parser = argparse.ArgumentParser()
+    parser.add_argument('--local_cache', action='store_true', default=False, dest='use_local_cache', help='Use local (in-process) cache instead of OCI Redis')
     parser.add_argument('--instance_principal', action='store_true', default=False, dest='use_instance_principal', help='Use Instance Principals for Authentication')
     parser.add_argument('--resource_principal', action='store_true', default=False, dest='use_resource_principal', help='Use Resource Principals for Authentication')
     parser.add_argument('--secret', default="", dest='secret', help='OCID of compartment with secrets vault')
-    parser.add_argument('--bucket', default="", dest='bucket', help='Bucket Name')
     parser.add_argument('--os_endpoint', default="https://objectstorage.us-ashburn-1.oraclecloud.com", dest='os_endpoint', help='Object Storage Endpoint')
+    parser.add_argument('--redis-url', default="", dest='redis_url', help='Redis URL')
+    parser.add_argument('--bucket', default="", dest='bucket', help='Bucket Name')
     parser.add_argument('--username', default="", dest='username', help='Username')
     parser.add_argument('--password', default="", dest='password', help='Password')
     cmd = parser.parse_args()
@@ -77,6 +79,8 @@ if __name__ == "__main__":
                         cmd.password = secret_content
                     case "bucket":
                         cmd.bucket = secret_content
+                    case "redis-url":
+                        cmd.redis_url = secret_content
         except Exception as e:
             print(e)
             print("Error building retrieving vaults and secrets, aborting")
