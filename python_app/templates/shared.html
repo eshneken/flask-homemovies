@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shared Video</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
+</head>
+<body>
+
+<div class="top-pad">
+  <div class="container">
+    <div class="columns">
+      <div class="column is-three-quarters">
+        <h1 class="title">{{ video_name }}</h1>
+      </div>
+      <div class="column">
+      </div>
+    </div>
+    <div class="columns">
+      <div class="column is-full">
+        <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
+        <video id="player" class="video-js vjs-default-skin vjs-fluid" controls preload>
+          <source src="{{ par_url }}" type="{{ encoding_type }}">
+        </video>
+      </div>
+    </div>
+  </div>
+
+  <!-- video player scripts  -->
+  <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/8.10.0/videojs-contrib-hls.min.js"></script>
+  <script>
+      var player = videojs('player', {fluid: true, enableSmoothSeeking: true, disablePictureInPicture: true});
+      player.play();
+  </script>
+
+</body>
+</html>

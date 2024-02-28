@@ -2,17 +2,115 @@
  
 {% block content %}
   <div class="top-pad">
-    <h1>{{ video_name }}</h1>
-    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
-    <video id="player" class="video-js vjs-default-skin vjs-fluid" controls preload>
-      <source src="{{ par_url }}" type="{{ encoding_type }}">
-    </video>
+    <div class="container">
+      <div class="columns">
+        <div class="column is-three-quarters">
+          <h1 class="title">{{ video_name }}</h1>
+        </div>
+        <div class="column">
+          <button class="button is-primary is-pulled-right" id="modalButton">Share Video</button>
+        </div>
+      </div>
+      <div class="columns">
+        <div class="column is-full">
+          <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
+          <video id="player" class="video-js vjs-default-skin vjs-fluid" controls preload>
+            <source src="{{ par_url }}" type="{{ encoding_type }}">
+          </video>
+        </div>
+      </div>
+    </div>
 
+    <!-- video player scripts  -->
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/8.10.0/videojs-contrib-hls.min.js"></script>
     <script>
         var player = videojs('player', {fluid: true, enableSmoothSeeking: true, disablePictureInPicture: true});
         player.play();
     </script>
+
+    <!-- Share button html -->
+    <div class="modal" id="myModal">
+      <div class="modal-background"></div>
+      <div class="modal-card" style="width: 60%;">
+        <header class="modal-card-head">
+          <p class="modal-card-title">Shareable Video Link</p>
+          <button class="delete" aria-label="close" id="closeModal"></button>
+        </header>
+        <section class="modal-card-body">
+          <!-- Modal content: URL and copy button -->
+          <div class="field has-addons">
+            <div class="control is-expanded">
+              <input class="input is-static" type="text" id="urlInput" value="http://example.com" readonly>
+            </div>
+            <div class="control">
+              <button class="button is-info" id="copyButton">Copy to Clipboard</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- share button scripts -->
+    <script>
+       
+
+      document.addEventListener('DOMContentLoaded', function () {
+        // Get references to modal and modal trigger elements
+        var modalButton = document.getElementById('modalButton');
+        var closeModalButtons = document.querySelectorAll('#closeModal, .modal-background');
+        var copyButton = document.getElementById('copyButton');
+        var urlInput = document.getElementById('urlInput');
+
+        // Function to open the modal
+        function openModal() {
+          getShareURL();
+          document.getElementById('myModal').classList.add('is-active');
+        }
+
+        // Function to close the modal
+        function closeModal() {
+          document.getElementById('myModal').classList.remove('is-active');
+        }
+
+        // Function to copy URL to clipboard
+        function copyURL() {
+          urlInput.select();
+          document.execCommand('copy');
+          //alert('URL copied to clipboard!');
+        }
+
+        // Function to get a sharing URL from the server
+        function getShareURL() {
+          data = {name: "{{full_name}}" };
+          fetch("/share_url",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                },
+              body: JSON.stringify(data)
+            })
+              .then(response => response.json())
+              .then(data => {
+                  if (data.url) {
+                      urlInput.value = data.url;
+                  }
+              });
+        }
+
+        // Event listener to open the modal when the button is clicked
+        modalButton.addEventListener('click', openModal);
+
+        // Event listener to close the modal when the close button or modal background is clicked
+        closeModalButtons.forEach(function (element) {
+          element.addEventListener('click', closeModal);
+        });
+
+        // Event listener to copy URL when the copy button is clicked
+        copyButton.addEventListener('click', copyURL);
+      });
+    </script>
+
   </div>
 {% endblock %}

@@ -1,12 +1,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
+            "name": "Python: Run Server",
             "type": "python",
             "request": "launch",
             "program": "python_app/app.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["--secret", "ocid1.compartment.oc1..abc123"]
+            "args": ["--secret", "ocid1.compartment.oc1..abc123", "--local_cache"]
         }
     ]

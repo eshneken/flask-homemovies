@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, flash, jsonify, url_for, session, app
 from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin
 from datetime import datetime, timedelta
+from html import unescape
 from cache import CacheProviderFactory, LocalCacheProvider, RedisCacheProvider
 import pytz
 import oci
@@ -140,8 +141,82 @@ def create_app(cmd, os_client, namespace):
             encoding_type = "video/mp4"
 
         # render the template
-        return render_template('detail.html', par_url=par_url, video_name=display_name, encoding_type=encoding_type)
+        return render_template('detail.html', par_url=par_url, video_name=display_name, full_name=name, encoding_type=encoding_type)
     
+    @app.route('/shared')
+    def shared():
+        generic_error = "Unable to process.  Please contact whomever shared this link with you and request a new link."
+
+        # get auth token from request
+        auth_code = request.args.get("auth_code")
+        if auth_code is None or len(auth_code) < 10:
+            logging.error("Missing auth_code in share attempt")
+            return render_template("auth_result.html", result=generic_error)
+        
+        # validate that the auth_code is valid
+        name = cache.get_shared(auth_code)
+        if name == None:
+            logging.error("Invalid auth_code in share attempt")
+            return render_template("auth_result.html", result=generic_error)
+        
+        # handle output differently depending on whether movie is HLS or not
+        is_hls = False
+
+        # strip folder name and suffix to build display name
+        try:
+            display_name = name.split("/",1)[1].rsplit(".", 1)[0]
+            prefix = name.rsplit("/",1)[0] + "/"
+            if ".hls" in display_name:
+                is_hls = True
+                display_name = display_name.split(".")[0]
+        except:
+            display_name = "Name not paresable"
+
+        try:
+            # remove expired PARs
+            now = datetime.utcnow().replace(tzinfo=pytz.utc)
+            list_par_response = os_client.list_preauthenticated_requests(namespace, cmd.bucket)
+            for par in list_par_response.data:
+                if par.time_expires < now:
+                    os_client.delete_preauthenticated_request(namespace, cmd.bucket, par.id)
+
+            # create two hour PAR 
+            expiry_time = now + timedelta(hours=2)
+            par_response = os_client.create_preauthenticated_request(
+            namespace,
+            cmd.bucket,
+            create_preauthenticated_request_details=oci.object_storage.models.CreatePreauthenticatedRequestDetails(
+                name=name + str(expiry_time),
+                access_type="AnyObjectRead",
+                time_expires=expiry_time,
+                bucket_listing_action="Deny"
+                ))
+            
+            par_url = cmd.os_endpoint + par_response.data.access_uri + name
+        except Exception as e:
+                flash('Error interacting with video repository')
+                logging.debug("Error listing/creating PARs: ")
+                logging.debug(e)
+                return render_template('home.html', sections=[], section_objects=[])
+        
+        # set the encoding type depending on whether this is HLS or not
+        if is_hls:
+            encoding_type = "application/x-mpegURL"
+        else:
+            encoding_type = "video/mp4"
+
+        # render the template
+        return render_template('shared.html', par_url=par_url, video_name=display_name, encoding_type=encoding_type)
+    
+    @app.route('/share_url', methods=['GET', 'POST'])
+    @login_required
+    def share_url():
+        auth_code = str(uuid.uuid4())
+        name = unescape(request.json.get("name"))
+        cache.set_shared(auth_code, name)
+        target_url = request.url_root + url_for("shared") + "?auth_code=" + auth_code
+        return jsonify(url=target_url)
+
     @app.route('/check_auth')
     def check_auth():
         is_authenticated = False
@@ -202,15 +277,24 @@ def create_app(cmd, os_client, namespace):
         logout_user()
         return redirect(url_for('home'))
     
+    # 
+    # health check endpoint for load balancer and OCI Health Check Service
+    #
     @app.route('/health')
     def health():
         return "i'm feeling good from my head to my shoes!"
     
+    #
+    # session timeout helper method
+    #
     @app.before_first_request
     def set_session_duration():
         session.permanent = True
         app.permanent_session_lifetime = timedelta(minutes=120)
 
+    #
+    # helper method to build the in-memory representation of the navigation
+    #
     def add_object(movie_list, exclude_list, object_file):
         try:
             # decode directory and filename
