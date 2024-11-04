@@ -29,7 +29,7 @@ usage:
 1. python3 -m venv ./.venv  (prepare the Python virtual environment)
 1. source ./.venv/bin/activate (activate the virtual environment)
 1. pip install -r requirements.txt (install all packages in virtual environment)
-1. docker build -t flask-homemovies . (optionally build if you plan to run with docker)
+1. docker build -t flask-homemovies .  (optionally build if you plan to run with docker)
 
 # Running locally
 1. Make sure you have an OCI config file at [~/.oci/config](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliconfigure.htm).  
@@ -38,9 +38,14 @@ usage:
 4. To run locally with docker:  docker run --mount type=bind,source=$HOME/.oci,target=/root/.oci flask-homemovies --bucket $bname --username $uname --password $pwd
 
 # Pushing to OCIR
-1. docker login (login to remote OCIR registry)
-1. docker tag flask-homemovies:latest $region_code.ocir.io/$os_namespace/hm/flask-homemovies (tag local image for push)
-2. docker push $region_code.ocir.io/$os_namespace/hm/flask-homemovies:latest (push image to OCIR)
+1. Create new private registry with name: hm/flask-homemovies in the hm compartment
+1. Make sure to cross-compile for AMD targets if you plan to run in OCI.  Your image build command should look more like this:
+```
+docker build -t flask-homemovies . --platform linux/amd64
+```
+1. docker login ocir.us-ashburn-1.oci.oraclecloud.com -u $username -p $auth_token (login to remote OCIR registry)
+1. docker tag flask-homemovies:latest ocir.us-ashburn-1.oci.oraclecloud.com/$os_namespace/hm/flask-homemovies (tag local image for push)
+2. docker push ocir.us-ashburn-1.oci.oraclecloud.com/$os_namespace/hm/flask-homemovies:latest (push image to OCIR)
 
 # Running in OCI on compute instance
 1. Make sure dynamic groups and policies have been defined
@@ -91,3 +96,89 @@ You will need to replace MyNamespace, MyMovies, and the directory name (2022.hls
 # Setting up auto-renewing certificates on OCI
 
 https://blog.johnnybytes.com/how-to-use-and-renew-ssl-certificates-on-oracle-cloud-oci-load-balancers-3c3b4c72c136
+
+# Other tenancy setup
+1. VCN Setup
+    a. VCN Wizard with Internet connectivity
+    a. Name: hm-vcn, CIDR: 10.0.0.0/24
+    a. Public subnet:  10.0.0.0/25
+    a. Private subnet: 10.0.0.128/25
+    a. After VCN created, add ingress rule to public security list for 0.0.0.0/0 access to TCP/80 & TCP/443
+1. OCI Cache Setup
+    a. Name hm-redis-cluster
+    a. Non-sharded, 2 nodes, 2GB RAM each
+    a. Select hm-vcn and the private subnet
+1. Vault Setup
+    a. Create vault 'hm-vault'. 
+    a. Create master encryption key 'hm-master-key' with software protection (to save costs)
+    a. Create secrets with manual generation and no rotation off the master encryption key
+        i. redis-url:  primary redis caching endpoint (i.e. amabxdvnfaafczpvajtbq-p.redis.us-ashburn-1.oci.oraclecloud.com)	
+        i. github-pat:  GitHub personal access token
+        i. bucket:  object storage bucket name (i.e. eshneken-hm)	
+        i. password: website password (i.e. .....)
+        i. username: website username (i.e. moviewatcher)
+1. IAM Setup
+    a. Dynamic Group Creation
+        i. hm-devops-dg rule with ANY selected (one rule)
+        ```
+        All {resource.compartment.id = '$ocid_of_hm_compartment', Any {resource.type = 'devopsdeploypipeline', resource.type = 'devopsbuildpipeline', resource.type = 'devopsbuildrun', resource.type = 'devopsdeploystage', resource.type = 'devopsdeployenvironment', resource.type = 'devopsrepository', resource.type = 'devopsconnection', resource.type = 'devopstrigger'}}
+        ```
+        i. hm-container-instances-dg rule with ANY selected (two rules)
+        ```
+        ALL {resource.type='computecontainerinstance'}	
+        ALL {instance.compartment.id='$ocid_of_hm_compartment'}
+        ```
+    b. Policy Setup
+        i. devops-policy in hm compartment
+        ```
+        Allow dynamic-group hm-devops-dg to read secret-family in compartment hm
+        Allow dynamic-group hm-devops-dg to read secret-family in compartment hm
+        Allow dynamic-group hm-devops-dg to manage devops-family in compartment hm
+        Allow dynamic-group hm-devops-dg to manage devops-family in compartment hm
+        Allow dynamic-group hm-devops-dg to manage virtual-network-family in compartment hm
+        Allow dynamic-group hm-devops-dg to manage virtual-network-family in compartment hm
+        Allow dynamic-group hm-devops-dg to manage ons-topics in compartment hm
+        Allow dynamic-group hm-devops-dg to manage ons-topics in compartment hm
+        Allow dynamic-group hm-devops-dg to manage objects in compartment hm
+        Allow dynamic-group hm-devops-dg to manage objects in compartment hm
+        Allow dynamic-group hm-devops-dg to manage all-artifacts in compartment hm	
+        Allow dynamic-group hm-devops-dg to manage all-artifacts in compartment hm
+        Allow dynamic-group hm-devops-dg to manage repos in compartment hm	
+        Allow dynamic-group hm-devops-dg to manage repos in compartment hm
+        Allow dynamic-group hm-devops-dg to manage compute-container-family in compartment hm
+        Allow dynamic-group hm-devops-dg to manage compute-container-family in compartment hm
+        Allow dynamic-group hm-devops-dg to use compute-container-instances in compartment hm
+        ```
+        i. container-instances-policy in hm compartment
+        ```
+        Allow dynamic-group hm-container-instances-dg to use object-family in compartment hm
+        Allow dynamic-group hm-container-instances-dg to use object-family in compartment hm
+        Allow dynamic-group hm-container-instances-dg to manage buckets in compartment hm where ANY { request.permission = 'PAR_MANAGE'}	 
+        Allow dynamic-group hm-container-instances-dg to manage buckets in compartment hm where ANY { request.permission = 'PAR_MANAGE'}
+        Allow dynamic-group hm-container-instances-dg to manage leaf-certificate-family in compartment hm
+        Allow dynamic-group hm-container-instances-dg to manage leaf-certificate-family in compartment hm
+        Allow dynamic-group hm-container-instances-dg to read secret-family in compartment hm
+        Allow dynamic-group hm-container-instances-dg to read repos in compartment hm
+        ```
+
+1. Container Instance
+    a. Create a container instance with name: hm-private-subnet-use-vault, shape: CI.Standard.E4.Flex, subnet: private subnet
+    a. container name: hm-container and select the image that uploaded to OCIR.  Don't worry about permissions, we have a policy that allows for repos to be read in the compartment.
+    a. Select "advanced options" and "command arguments" and add
+    ```
+    --resource_principal,--secret=$ocid_of_hm_compartment
+    ```
+    a. Record the private IP of the container instance.  You will need this to set the load balancer's backend address.
+
+1. Load Balancer
+    a. Create a Layer7 application load balancer with:
+        i. name: hm-lbaas
+        i. visibility: public
+        i. ip address: ephemeral
+        i. bandwidth: 10 to 200 Mbps
+        i. network:  select your vcn with the public subnet
+        i. lb policy: weighted round robin
+        i. backend servers: don't select any
+        i. health check:  protocol: HTTP, port: 5000, URI: /health
+
+
