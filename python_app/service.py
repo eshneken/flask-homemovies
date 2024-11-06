@@ -309,7 +309,7 @@ def create_app(cmd, os_client, namespace):
             # check the name to see if it contains a directory in the exclude_list
             # if it does, it means we have already processed the playlist and this is just
             # a segment file which means that we should skip it
-            if ".hls" in name:
+            if ".hls/" in name:
                 name_split = name.split(".")
                 if name_split[0] in exclude_list:
                     return movie_list, exclude_list
@@ -318,11 +318,16 @@ def create_app(cmd, os_client, namespace):
             if not dir in movie_list:
                 movie_list[dir] = []
 
-            if ".hls" in name:
-                object_name = object_file.name + "output.m3u8"
-                # get a display name without the extension
-                display_name = name.rsplit(".", 1)[0]
-                exclude_list.append(display_name)
+            ## find the playlist (output.m3u8) and add it to the index.  otherwise do normal file processing
+            if ".hls/" in name:
+                if "output.m3u8" in name:
+                    object_name = object_file.name
+                    # get a display name without the extension
+                    display_name = name.rsplit("/", 1)[0]
+                    display_name = display_name.rsplit(".", 1)[0]
+                    exclude_list.append(display_name)
+                else:
+                    return movie_list, exclude_list
             else:
                 object_name = object_file.name
                 # get a display name without the extension
