@@ -199,6 +199,8 @@ You will need to replace MyNamespace, MyMovies, and the directory name (2022.hls
         i. Create an HTTP listener (protocol HTTP, port 80) targeting the empty-set backend set.  Select the http_to_https_redirect rule set.
     a. If self-signed certificates are not desirable, it is possible to use LetsEncrypt to integrate a public certificate solution:  https://blog.johnnybytes.com/how-to-use-and-renew-ssl-certificates-on-oracle-cloud-oci-load-balancers-3c3b4c72c136
 
+    
+
 
 
 
