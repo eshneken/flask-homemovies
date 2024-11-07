@@ -43,7 +43,7 @@ jobs:
   deploy:
       needs: build
       runs-on: ubuntu-latest
-      name: List the display name and shape of the instances in my compartment
+      name: Restart container instance
       env:
         OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
         OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
