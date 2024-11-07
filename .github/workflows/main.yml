@@ -34,7 +34,7 @@ jobs:
       - name: docker build
         id: docker-build
         run: |
-          docker build -t hm/flask-homemovies:${{ github.sha }} --platform linux/amd64
+          docker build -t hm/flask-homemovies:${{ github.sha }} ./python_app/Dockerfile --platform linux/amd64
 
       - name: Tag and push a container image
         id: tag-and-push-image
