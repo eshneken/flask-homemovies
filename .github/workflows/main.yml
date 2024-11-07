@@ -22,7 +22,7 @@ jobs:
         uses: oracle-actions/get-ocir-repository@v1.3.0
         id: get-ocir-repository
         with:
-          name: "hm/flask-homemovies"
+          name: hm/flask-homemovies
           compartment: ${{ secrets.OCI_COMPARTMENT_OCID }}
 
       - name: Log into OCIR
