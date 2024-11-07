@@ -31,21 +31,29 @@ jobs:
         with:
           auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
 
-      - name: Build Docker image
+      - name: Build and tag and push docker image
         uses: docker/build-push-action@v6
         with:
+          push: true
           context: "{{defaultContext}}:python_app"
-          tags: hm/flask-homemovies:${{ github.sha }}
+          tags: "${{ steps.get-ocir-repository.outputs.repo_path }}:latest"
           platforms:
             linux/amd64
 
-     # - name: docker build
-     #   id: docker-build
-     #   run: |
-     #     docker build -t hm/flask-homemovies:${{ github.sha }} ./python_app/Dockerfile --platform linux/amd64
+  deploy:
+      needs: build
+      runs-on: ubuntu-latest
+      name: List the display name and shape of the instances in my compartment
+      env:
+        OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+        OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+        OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+        OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+        OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      steps:
+        - name: Retrieve the OCID of a named compartment in tenancy
+          uses: oracle-actions/run-oci-cli-command@v1.3.2
+          id: restart-container-instance
+          with:
+            command: "container-instances container-instance restart --container-instance-id ${{ secrets.OCI_CONTAINER_INSTANCE_OCID }}"
 
-      - name: Tag and push a container image
-        id: tag-and-push-image
-        run: |
-          docker tag hm/flask-homemovies:${{ github.sha }} "${{ steps.get-ocir-repository.outputs.repo_path }}:${{ github.sha }}"
-          docker push "${{ steps.get-ocir-repository.outputs.repo_path }}:${{ github.sha }}"
