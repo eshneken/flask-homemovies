@@ -1,0 +1,40 @@
+name: Deploy Home Movies
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+    steps:
+      - name: Get or create an OCIR Repository
+        uses: oracle-actions/get-ocir-repository@v1.3.0
+        id: get-ocir-repository
+        with:
+          name: hm/flask-homemovies
+          compartment: ${{ secrets.OCI_COMPARTMENT_OCID }}
+
+      - name: Log into OCIR
+        uses: oracle-actions/login-ocir@v1.3.0
+        id: login-ocir
+        with:
+          auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
+
+      - name: docker build
+        id: docker-build
+        run: |
+          docker build -t hm/flask-homemovies:${{ github.sha }}
+
+      - name: Tag and push a container image
+        id: tag-and-push-image
+        run: |
+          docker tag hm/flask-homemovies:${{ github.sha }} "${{ steps.get-ocir-repository.outputs.repo_path }}:${{ github.sha }}"
+          docker push "${{ steps.get-ocir-repository.outputs.repo_path }}:${{ github.sha }}"
