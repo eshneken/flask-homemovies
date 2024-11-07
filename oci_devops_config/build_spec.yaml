@@ -16,7 +16,7 @@ env:
     - BUILDRUN_HASH
 steps:
   - type: Command
-    name: "Generate build tage"
+    name: "Generate build stage"
     timeoutInSeconds: 40
     command: |
       export BUILDRUN_HASH=`echo ${OCI_BUILD_RUN_ID} | rev | cut -c 1-7`
