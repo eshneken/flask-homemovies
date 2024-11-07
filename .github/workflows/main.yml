@@ -1,9 +1,12 @@
 name: Deploy Home Movies
 
 on:
+  # on push to main branch
   push:
     branches:
       - master
+  # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   build:
