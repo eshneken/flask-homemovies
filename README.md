@@ -39,7 +39,7 @@ usage:
 
 # Pushing to OCIR
 1. Create new private registry with name: hm/flask-homemovies in the hm compartment
-1. Make sure to cross-compile for AMD targets if you plan to run in OCI.  Your image build command should look more like this:
+1. Make sure to cross-compile for AMD targets if you plan to run in OC1.  Your image build command should look more like this:
 ```
 docker build -t flask-homemovies . --platform linux/amd64
 ```
@@ -95,58 +95,33 @@ You will need to replace MyNamespace, MyMovies, and the directory name (2022.hls
 
 # Other tenancy setup
 1. VCN Setup
-    a. VCN Wizard with Internet connectivity
-    a. Name: hm-vcn, CIDR: 10.0.0.0/24
-    a. Public subnet:  10.0.0.0/25
-    a. Private subnet: 10.0.0.128/25
-    a. After VCN created, add ingress rule to public security list for 0.0.0.0/0 access to TCP/80 & TCP/443
-    a. Add ingress rule to private security list for 10.0.0.0/25 to allow TCP/5000.  This will allow the LB in the public subnet to access the container on port 5000 in the private subnet/
+    1. VCN Wizard with Internet connectivity
+    1. Name: hm-vcn, CIDR: 10.0.0.0/24
+    1. Public subnet:  10.0.0.0/25
+    1. Private subnet: 10.0.0.128/25
+    1. After VCN created, add ingress rule to public security list for 0.0.0.0/0 access to TCP/80 & TCP/443
+    1. Add ingress rule to private security list for 10.0.0.0/25 to allow TCP/5000.  This will allow the LB in the public subnet to access the container on port 5000 in the private subnet/
 1. OCI Cache Setup
-    a. Name hm-redis-cluster
-    a. Non-sharded, 2 nodes, 2GB RAM each
-    a. Select hm-vcn and the private subnet
+    1. Name hm-redis-cluster
+    1. Non-sharded, 2 nodes, 2GB RAM each
+    1. Select hm-vcn and the private subnet
 1. Vault Setup
-    a. Create vault 'hm-vault'. 
-    a. Create master encryption key 'hm-master-key' with software protection (to save costs)
-    a. Create secrets with manual generation and no rotation off the master encryption key
-        i. redis-url:  primary redis caching endpoint (i.e. amabxdvnfaafczpvajtbq-p.redis.us-ashburn-1.oci.oraclecloud.com)	
-        i. github-pat:  GitHub personal access token
-        i. bucket:  object storage bucket name (i.e. eshneken-hm)	
-        i. password: website password (i.e. .....)
-        i. username: website username (i.e. moviewatcher)
+    1. Create vault 'hm-vault'. 
+    1. Create master encryption key 'hm-master-key' with software protection (to save costs)
+    1. Create secrets with manual generation and no rotation off the master encryption key
+        1. redis-url:  primary redis caching endpoint (i.e. amabxdvnfaafczpvajtbq-p.redis.us-ashburn-1.oci.oraclecloud.com)	
+        1. bucket:  object storage bucket name (i.e. eshneken-hm)	
+        1. username: website username (i.e. moviewatcher)
+        1. password: website password (i.e. .....)
 1. IAM Setup
-    a. Dynamic Group Creation
-        i. hm-devops-dg rule with ANY selected (one rule)
-        ```
-        All {resource.compartment.id = '$ocid_of_hm_compartment', Any {resource.type = 'devopsdeploypipeline', resource.type = 'devopsbuildpipeline', resource.type = 'devopsbuildrun', resource.type = 'devopsdeploystage', resource.type = 'devopsdeployenvironment', resource.type = 'devopsrepository', resource.type = 'devopsconnection', resource.type = 'devopstrigger'}}
-        ```
-        i. hm-container-instances-dg rule with ANY selected (two rules)
+    1. Dynamic Group Creation
+        Create hm-container-instances-dg rule with ANY selected (two rules)
         ```
         ALL {resource.type='computecontainerinstance'}	
         ALL {instance.compartment.id='$ocid_of_hm_compartment'}
         ```
-    b. Policy Setup
-        i. devops-policy in hm compartment
-        ```
-        Allow dynamic-group hm-devops-dg to read secret-family in compartment hm
-        Allow dynamic-group hm-devops-dg to read secret-family in compartment hm
-        Allow dynamic-group hm-devops-dg to manage devops-family in compartment hm
-        Allow dynamic-group hm-devops-dg to manage devops-family in compartment hm
-        Allow dynamic-group hm-devops-dg to manage virtual-network-family in compartment hm
-        Allow dynamic-group hm-devops-dg to manage virtual-network-family in compartment hm
-        Allow dynamic-group hm-devops-dg to manage ons-topics in compartment hm
-        Allow dynamic-group hm-devops-dg to manage ons-topics in compartment hm
-        Allow dynamic-group hm-devops-dg to manage objects in compartment hm
-        Allow dynamic-group hm-devops-dg to manage objects in compartment hm
-        Allow dynamic-group hm-devops-dg to manage all-artifacts in compartment hm	
-        Allow dynamic-group hm-devops-dg to manage all-artifacts in compartment hm
-        Allow dynamic-group hm-devops-dg to manage repos in compartment hm	
-        Allow dynamic-group hm-devops-dg to manage repos in compartment hm
-        Allow dynamic-group hm-devops-dg to manage compute-container-family in compartment hm
-        Allow dynamic-group hm-devops-dg to manage compute-container-family in compartment hm
-        Allow dynamic-group hm-devops-dg to use compute-container-instances in compartment hm
-        ```
-        i. container-instances-policy in hm compartment
+    1. Policy Setup
+        Create container-instances-policy in hm compartment
         ```
         Allow dynamic-group hm-container-instances-dg to use object-family in compartment hm
         Allow dynamic-group hm-container-instances-dg to use object-family in compartment hm
@@ -159,47 +134,62 @@ You will need to replace MyNamespace, MyMovies, and the directory name (2022.hls
         ```
 
 1. Container Instance
-    a. Create a container instance with name: hm-private-subnet-use-vault, shape: CI.Standard.E4.Flex, subnet: private subnet
-    a. container name: hm-container and select the image that uploaded to OCIR.  Don't worry about permissions, we have a policy that allows for repos to be read in the compartment.
-    a. Select "advanced options" and "command arguments" and add
+    1. Create a container instance with name: hm-private-subnet-use-vault, shape: CI.Standard.E4.Flex, subnet: private subnet
+    1. container name: hm-container and select the image that uploaded to OCIR.  Don't worry about permissions, we have a policy that allows for repos to be read in the compartment.
+    1. Select "advanced options" and "command arguments" and add
     ```
     --resource_principal,--secret=$ocid_of_hm_compartment
     ```
-    a. Record the private IP of the container instance.  You will need this to set the load balancer's backend address.
+    1. Record the private IP of the container instance.  You will need this to set the load balancer's backend address.
 
 1. Load Balancer
-    a. Create a Layer7 application load balancer with:
-        i. name: hm-lbaas
-        i. visibility: public
-        i. ip address: ephemeral
-        i. bandwidth: 10 to 200 Mbps
-        i. network:  select your vcn with the public subnet
-        i. lb policy: weighted round robin
-        i. backend servers: don't select any
-        i. health check:  protocol: HTTP, port: 5000, URI: /health
-        i. Configure HTTPS listener. Select LB managed certificate.  Upload server.crt, rootCA.crt, and server.key generated by running generate-ssl.sh script in this repository.  Script taken from: https://devopscube.com/create-self-signed-certificates-openssl/
-        i. Enable error logging
-        i. Wait until the LBaaS is created to continute configuring it
-    a. Configure backend set
-        i. Go to LB->backend sets->Backends and add a backend with IP address.
-        i. Specify the IP address of the container instance previously created and set the port to 5000
-        i. You previously enabled TCP/5000 ingress into the private subnet.  Double check if necessary.
-        i. Double check that the health check is correct.
-    a. Configure HTTP -> HTTPS redirect
-        i. Create a backend set called "empty-set" with no targets
-        i. Create a rule set called http_to_https_redirect.  Add a URL redirect rule with:
-            i. Source path: /
-            i. Match type: Force longest prefix match
-            i. Redirect protocol: https
-            i. Redirect host: {host}
-            i. Redirect port: 443
-            i. Redirect path: /{path}
-            i. Redirect query: ?{query}
-            i. Response code: 302 - Found
-        i. Create an HTTP listener (protocol HTTP, port 80) targeting the empty-set backend set.  Select the http_to_https_redirect rule set.
-    a. If self-signed certificates are not desirable, it is possible to use LetsEncrypt to integrate a public certificate solution:  https://blog.johnnybytes.com/how-to-use-and-renew-ssl-certificates-on-oracle-cloud-oci-load-balancers-3c3b4c72c136
+    1. Create a Layer7 application load balancer with:
+        1. name: hm-lbaas
+        1. visibility: public
+        1. ip address: ephemeral
+        1. bandwidth: 10 to 200 Mbps
+        1. network:  select your vcn with the public subnet
+        1. lb policy: weighted round robin
+        1. backend servers: don't select any
+        1. health check:  protocol: HTTP, port: 5000, URI: /health
+        1. Configure HTTPS listener. Select LB managed certificate.  Upload server.crt, rootCA.crt, and server.key generated by running generate-ssl.sh script in this repository.  Script taken from: https://devopscube.com/create-self-signed-certificates-openssl/
+        1. Enable error logging
+        1. Wait until the LBaaS is created to continute configuring it
+    1. Configure backend set
+        1. Go to LB->backend sets->Backends and add a backend with IP address.
+        1. Specify the IP address of the container instance previously created and set the port to 5000
+        1. You previously enabled TCP/5000 ingress into the private subnet.  Double check if necessary.
+        1. Double check that the health check is correct.
+    1. Configure HTTP -> HTTPS redirect
+        1. Create a backend set called "empty-set" with no targets
+        1. Create a rule set called http_to_https_redirect.  Add a URL redirect rule with:
+            1. Source path: /
+            1. Match type: Force longest prefix match
+            1. Redirect protocol: https
+            1. Redirect host: {host}
+            1. Redirect port: 443
+            1. Redirect path: /{path}
+            1. Redirect query: ?{query}
+            1. Response code: 302 1. Found
+        1. Create an HTTP listener (protocol HTTP, port 80) targeting the empty-set backend set.  Select the http_to_https_redirect rule set.
+    1. If self-signed certificates are not desirable, it is possible to use LetsEncrypt to integrate a public certificate solution:  https://blog.johnnybytes.com/how-to-use-and-renew-ssl-certificates-on-oracle-cloud-oci-load-balancers-3c3b4c72c136
 
-    
+1. CI/CD with GitHub Actions
+
+    The .github/workflows/main.yml file contains the simple build and deploy pipeline for this application.  Any push to the main branch (or manual run from GitHub Actions) will trigger a docker build, push into OCIR, and a restart of the container instance that will result in pulling the latest docker image.
+
+    The following GitHub Actions secrets must be set by going to Settings->Secrets and variables->Repository Secrets:
+
+    * OCI_AUTH_TOKEN
+    * OCI_CLI_FINGERPRINT
+    * OCI_CLI_KEY_CONTENT
+    * OCI_CLI_REGION
+    * OCI_CLI_TENANCY
+    * OCI_CLI_USER
+    * OCI_COMPARTMENT_OCID
+    * OCI_CONTAINER_INSTANCE_OCID
+
+
 
 
 
