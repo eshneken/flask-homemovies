@@ -66,7 +66,10 @@ if __name__ == "__main__":
             secret_client = oci.secrets.SecretsClient(config=config, signer=signer)
 
             secrets_list = vault_client.list_secrets(cmd.secret)
+            expected_names = {"username", "password", "bucket", "redis-url"}
             for secret in secrets_list.data:
+                if secret.secret_name not in expected_names:
+                    continue
                 response = secret_client.get_secret_bundle(secret.id)
                 base64_Secret_content = response.data.secret_bundle_content.content
                 base64_secret_bytes = base64_Secret_content.encode('ascii')
