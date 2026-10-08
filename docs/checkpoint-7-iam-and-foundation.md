@@ -1,15 +1,22 @@
 # Checkpoint 7 — initial IAM and durable Terraform state
 
-Status: read-only GitHub plan passed; gated apply is the next step. No resources from this checkpoint
-have been created yet. This checkpoint does not provision a VM, network, NLB,
+Status: read-only GitHub plan passed; apply created the foundation and runtime
+group, and is resuming the automation policy creation. This checkpoint does not provision a VM, network, NLB,
 Bastion, application secret or DNS record, and does not copy any movies.
 
 The [approved read-only plan](https://github.com/eshneken/flask-homemovies/actions/runs/37852893094)
 passed with three foundation creates and two initial IAM creates: five creates,
 zero updates, zero deletes and zero imports. The temporary GitHub session secret
 and its local bundle were removed after completion, and the one-time trigger was
-disabled. Apply uses a freshly minted session and a separate GitHub deployment
-approval; approving the plan job did not create resources.
+disabled. Approving the plan job did not create resources. The first apply created
+the private versioned state bucket, standard Vault, software key and runtime
+dynamic group. Automation policy creation failed with OCI InvalidParameter;
+namespace permissions are corrected to the supported `read` verb. Both module
+states are private in the OCI backend and the retry uses those states.
+
+The owner subsequently requested removal of GitHub approval gates. The bootstrap
+environment's reviewer requirement is removed. Progress and review now happen at
+chat checkpoints; no GitHub approval is required for each plan or apply.
 
 ## Resources and permissions to review
 
@@ -24,13 +31,13 @@ Terraform proposes five resources in the destination tenancy:
 | Automation IAM policy | Tenancy-level policy granting the project identities the limited permissions below |
 
 The infrastructure group can manage resources inside the Home Movies compartment,
-read that compartment, inspect the Object Storage namespace, and manage the
+read that compartment, read the Object Storage namespace, and manage the
 **existing runtime dynamic-group ID only**. It cannot create unrelated dynamic
 groups or change the tenancy-level automation policy. Compartment administration
 includes this application's IAM policies and Vault secrets.
 
 The application-deployment group can read instances and submit/read/cancel Run
-Commands in Home Movies, plus inspect the namespace for authentication checks.
+Commands in Home Movies, plus read the namespace for authentication checks.
 It cannot provision or delete a VM, edit networking, change federation, directly
 read Vault secrets or access the Terraform state bucket. Deployment can run code
 on this application's VM and thereby access its runtime secrets; protect the
@@ -84,12 +91,12 @@ explicit `plan` or `apply` operation on a branch. It requires at least 35 minute
 of token validity at entry; the GitHub job is bounded to 30 minutes. The owner
 must approve promptly or a new session must be minted. The session and temporary
 key can exercise the local administrator's authority during that hour, which is
-why the job requires the existing reviewer gate and uses a reviewed branch.
+why the session is temporary and the job uses the reviewed migration branch.
 
 Repo variable `ENABLE_HOME_MOVIES_INFRA_BOOTSTRAP` is a one-time opt-in.
 `HOME_MOVIES_BOOTSTRAP_OPERATION=plan` performs no resource writes. The owner
 reviews the aggregate counts and the permission list above before selecting
-`apply`. Each new job still requires GitHub's deployment approval. Disable the
+`apply`. GitHub's reviewer gate has been removed at the owner's request. Disable the
 opt-in and delete the temporary session secret after each completed attempt.
 The session mint helper refuses to overwrite an existing local bundle.
 
@@ -127,9 +134,9 @@ separate deployment/infrastructure permissions and reuse of the transferred
 runtime group. Existing tests continue to verify private VM placement, the
 50 GB/1 OCPU budget and mandatory IMDSv2.
 
-1. Run and approve the read-only bootstrap plan in GitHub.
-2. Review counts and this permission/resource list; then run the separately
-   approved apply operation with a fresh session if necessary.
+1. Run the read-only bootstrap plan in GitHub and report it at a chat checkpoint.
+2. Review counts and this permission/resource list; run the apply operation with
+   a fresh session if necessary, without a separate GitHub approval gate.
 3. Verify private bucket/Vault/key, scoped IAM grants and runtime group handoff.
    Configure the infrastructure environment from private bootstrap metadata.
 4. Enable permanent WIF verification and test both mapped service identities.

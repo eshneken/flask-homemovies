@@ -25,6 +25,10 @@ run "separate_scoped_authorities" {
     condition     = length(oci_identity_policy.automation.statements) == 7
     error_message = "Review additions to automation permissions explicitly."
   }
+  assert {
+    condition     = contains(oci_identity_policy.automation.statements, "Allow group id test-deploy-group to read objectstorage-namespaces in tenancy") && !anytrue([for s in oci_identity_policy.automation.statements : strcontains(s, "inspect objectstorage-namespaces")])
+    error_message = "OCI namespace access supports read, not inspect."
+  }
 }
 run "reuse_transferred_runtime_group" {
   command = plan
