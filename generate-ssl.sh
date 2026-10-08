@@ -36,8 +36,8 @@ distinguished_name = dn
 C = US
 ST = DC
 L = Washington
-O = Eshneken
-OU = Eshneken
+O = Example
+OU = Example
 CN = ${DOMAIN}
 
 [ req_ext ]

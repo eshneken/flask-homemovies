@@ -1,3 +1,4 @@
+{
     "version": "0.2.0",
     "configurations": [
         {
@@ -7,6 +8,9 @@
             "program": "python_app/app.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["--secret", "ocid1.compartment.oc1..abc123", "--local_cache"]
+            "env": {
+                "HM_CONFIG_FILE": "${workspaceFolder}/.local/browser-app.json"
+            }
         }
     ]
+}

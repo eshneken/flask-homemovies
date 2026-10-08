@@ -1,0 +1,41 @@
+name: Verify Home Movies OCI federation
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+permissions:
+  contents: read
+concurrency:
+  group: home-movies-wif-verification
+  cancel-in-progress: false
+jobs:
+  verify:
+    # The repository-level opt-in supports testing a new workflow on a branch,
+    # before it exists on the default branch and can be manually dispatched.
+    if: startsWith(github.ref, 'refs/heads/') && (github.event_name == 'workflow_dispatch' || vars.ENABLE_HOME_MOVIES_WIF == 'true')
+    environment: homemovies-production
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-oci-wif
+        with:
+          domain-url: ${{ vars.OCI_WIF_DOMAIN_URL }}
+          client-id: ${{ vars.OCI_WIF_CLIENT_ID }}
+          client-secret: ${{ secrets.OCI_WIF_CLIENT_SECRET }}
+          audience: ${{ vars.OCI_WIF_AUDIENCE }}
+          service-user-ocid: ${{ vars.OCI_WIF_SERVICE_USER_OCID }}
+          tenancy-ocid: ${{ vars.OCI_TENANCY_OCID }}
+          region: ${{ vars.OCI_REGION }}
+          environment: homemovies-production
+      - name: Remove ephemeral credentials
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${HM_WIF_PYTHON:-}" ]; then
+            "$HM_WIF_PYTHON" scripts/oci_wif.py cleanup
+          fi

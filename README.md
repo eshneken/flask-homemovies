@@ -1,8 +1,18 @@
 # flask-homemovies
-Flask application to serve video files from OCI object storage in a secure web interface
+Flask application for private family movie playback.
+
+This migration branch now serves HLS playlists through authenticated Flask routes
+and video bytes directly from private Backblaze B2, using its native SDK. SQLite
+replaces Redis for expiring authentication tokens. The existing production
+deployment is unchanged. See [checkpoint 3](docs/checkpoint-3-flask-playback.md)
+for the tested local demo and current limitations.
+
+The OCI Object Storage instructions below describe the original deployment;
+they no longer launch the application on this branch. Infrastructure and Actions
+deployment replacements will follow in a separate migration checkpoint.
 
 # Usage
-usage: 
+usage:
 
     app.py [-h] [--instance_principal] [--resource_principal] [--secret SECRET] [--bucket BUCKET] [--os_endpoint OS_ENDPOINT] [--username USERNAME] [--password PASSWORD]
 
@@ -18,9 +28,9 @@ usage:
     --username USERNAME       Username
     --password PASSWORD       Password
 
-1. The object storage endpoint defaults to Ashburn, otherwise select an [endpoint from the list](https://docs.oracle.com/en-us/iaas/api/#/en/objectstorage/20160918/). 
+1. The object storage endpoint defaults to Ashburn, otherwise select an [endpoint from the list](https://docs.oracle.com/en-us/iaas/api/#/en/objectstorage/20160918/).
 1. Use instance principal auth for running on an OCI compute instance OR resource principal auth for running in an OCI container instance OR pass neither parameter which means we assume an OCI config file in ~/.oci
-1. Bucket refers to the bucketname with foldered videos. 
+1. Bucket refers to the bucketname with foldered videos.
 1. Username and Password are the challenge credentials for the Flask app
 1. Either bucket, username, and password need to be passed in or the secret flag must be passed with the OCID of a compartment that contains an OCI Secret Vault that holds those three secrets
 
@@ -32,13 +42,13 @@ usage:
 1. docker build -t flask-homemovies .  (optionally build if you plan to run with docker)
 
 # Running locally
-1. Make sure you have an OCI config file at [~/.oci/config](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliconfigure.htm).  
+1. Make sure you have an OCI config file at [~/.oci/config](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliconfigure.htm).
 2. Most likely you will pass --bucket, --username, --password or alternatively can simply use --secret
 3. Debugging can be done in VSCode, sample launch.json.template can be modified and renamed launch.json
 4. To run locally with docker:  docker run --mount type=bind,source=$HOME/.oci,target=/root/.oci flask-homemovies --bucket $bname --username $uname --password $pwd
 
 # Pushing to OCIR
-1. Create new private registry with name: hm/flask-homemovies in the hm compartment
+1. Create new private registry with name: hm/flask-homemovies in the compartment selected by OCI_COMPARTMENT_OCID
 1. Make sure to cross-compile for AMD targets if you plan to run in OC1.  Your image build command should look more like this:
 ```
 docker build -t flask-homemovies . --platform linux/amd64
@@ -85,6 +95,10 @@ Converting a 4K mp4 to HLS can be accomplished using the [FFMPEG](https://ffmpeg
 
 # Uploading HLS Directory to Object Storage
 
+The migration branch's replacement upload procedure is documented in [Manually upload movies to Backblaze B2](docs/manual-b2-upload.md). It preserves filenames and prefixes exactly and runs from your computer without CI. The OCI procedure below describes the current application until cutover.
+
+For public-repository deployment configuration, see [Configuration for the public repository](docs/public-repository-configuration.md). Supply the target compartment through GitHub Actions environment variables `OCI_COMPARTMENT_NAME` and `OCI_COMPARTMENT_OCID`; the account owner creates it before bootstrap. Do not commit its actual OCID, private configuration, or credentials. The local launch sample reads the compartment OCID from your local environment.
+
 An HLS directory may contain thousands of files.  The easiest way to upload it and map it to the proper folder (prefix) is to use the OCI CLI's bulk-upload command.
 
 For example, if we follow the example above and assume the object storage namespace is 'MyNamespace' the command would look like this:
@@ -106,31 +120,31 @@ You will need to replace MyNamespace, MyMovies, and the directory name (2022.hls
     1. Non-sharded, 2 nodes, 2GB RAM each
     1. Select hm-vcn and the private subnet
 1. Vault Setup
-    1. Create vault 'hm-vault'. 
+    1. Create vault 'hm-vault'.
     1. Create master encryption key 'hm-master-key' with software protection (to save costs)
     1. Create secrets with manual generation and no rotation off the master encryption key
-        1. redis-url:  primary redis caching endpoint (i.e. amabxdvnfaafczpvajtbq-p.redis.us-ashburn-1.oci.oraclecloud.com)	
-        1. bucket:  object storage bucket name (i.e. eshneken-hm)	
+        1. redis-url:  primary redis caching endpoint (i.e. amabxdvnfaafczpvajtbq-p.redis.us-ashburn-1.oci.oraclecloud.com)
+        1. bucket:  object storage bucket name (i.e. eshneken-hm)
         1. username: website username (i.e. moviewatcher)
         1. password: website password (i.e. .....)
 1. IAM Setup
     1. Dynamic Group Creation
         Create hm-container-instances-dg rule with ANY selected (two rules)
         ```
-        ALL {resource.type='computecontainerinstance'}	
-        ALL {instance.compartment.id='$ocid_of_hm_compartment'}
+        ALL {resource.type='computecontainerinstance'}
+        ALL {instance.compartment.id='${OCI_COMPARTMENT_OCID}'}
         ```
     1. Policy Setup
-        Create container-instances-policy in hm compartment
+        Create container-instances-policy in the compartment selected by OCI_COMPARTMENT_OCID
         ```
-        Allow dynamic-group hm-container-instances-dg to use object-family in compartment hm
-        Allow dynamic-group hm-container-instances-dg to use object-family in compartment hm
-        Allow dynamic-group hm-container-instances-dg to manage buckets in compartment hm where ANY { request.permission = 'PAR_MANAGE'}	 
-        Allow dynamic-group hm-container-instances-dg to manage buckets in compartment hm where ANY { request.permission = 'PAR_MANAGE'}
-        Allow dynamic-group hm-container-instances-dg to manage leaf-certificate-family in compartment hm
-        Allow dynamic-group hm-container-instances-dg to manage leaf-certificate-family in compartment hm
-        Allow dynamic-group hm-container-instances-dg to read secret-family in compartment hm
-        Allow dynamic-group hm-container-instances-dg to read repos in compartment hm
+        Allow dynamic-group hm-container-instances-dg to use object-family in compartment id ${OCI_COMPARTMENT_OCID}
+        Allow dynamic-group hm-container-instances-dg to use object-family in compartment id ${OCI_COMPARTMENT_OCID}
+        Allow dynamic-group hm-container-instances-dg to manage buckets in compartment id ${OCI_COMPARTMENT_OCID} where ANY { request.permission = 'PAR_MANAGE'}
+        Allow dynamic-group hm-container-instances-dg to manage buckets in compartment id ${OCI_COMPARTMENT_OCID} where ANY { request.permission = 'PAR_MANAGE'}
+        Allow dynamic-group hm-container-instances-dg to manage leaf-certificate-family in compartment id ${OCI_COMPARTMENT_OCID}
+        Allow dynamic-group hm-container-instances-dg to manage leaf-certificate-family in compartment id ${OCI_COMPARTMENT_OCID}
+        Allow dynamic-group hm-container-instances-dg to read secret-family in compartment id ${OCI_COMPARTMENT_OCID}
+        Allow dynamic-group hm-container-instances-dg to read repos in compartment id ${OCI_COMPARTMENT_OCID}
         ```
 
 1. Container Instance
@@ -138,7 +152,7 @@ You will need to replace MyNamespace, MyMovies, and the directory name (2022.hls
     1. container name: hm-container and select the image that uploaded to OCIR.  Don't worry about permissions, we have a policy that allows for repos to be read in the compartment.
     1. Select "advanced options" and "command arguments" and add
     ```
-    --resource_principal,--secret=$ocid_of_hm_compartment
+    --resource_principal,--secret=${OCI_COMPARTMENT_OCID}
     ```
     1. Record the private IP of the container instance.  You will need this to set the load balancer's backend address.
 
@@ -186,11 +200,9 @@ You will need to replace MyNamespace, MyMovies, and the directory name (2022.hls
     * OCI_CLI_REGION
     * OCI_CLI_TENANCY
     * OCI_CLI_USER
-    * OCI_COMPARTMENT_OCID
     * OCI_CONTAINER_INSTANCE_OCID
 
-
-
+    The branch's compartment input is now the **production environment variable** `OCI_COMPARTMENT_OCID`, referenced with `${{ vars.OCI_COMPARTMENT_OCID }}`. Declare the job's GitHub environment to access its variables. Credentials remain secrets. The old container-instance workflow is replaced by the new VM workflow at migration promotion; these branch changes do not modify the currently published default branch.
 
 
 

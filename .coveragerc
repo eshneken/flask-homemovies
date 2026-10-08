@@ -1,0 +1,11 @@
+[run]
+source =
+    python_app
+    oci_wif
+    vm_deploy
+    oci_bootstrap_plan
+
+[report]
+fail_under = 91
+show_missing = True
+precision = 2

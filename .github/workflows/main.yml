@@ -10,7 +10,10 @@ on:
 
 jobs:
   build:
+    # Prevent manual runs on migration branches from touching the source app.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: production
     env:
       OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
       OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
@@ -23,7 +26,7 @@ jobs:
         id: get-ocir-repository
         with:
           name: hm/flask-homemovies
-          compartment: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          compartment: ${{ vars.OCI_COMPARTMENT_OCID }}
 
       - name: Log into OCIR
         uses: oracle-actions/login-ocir@v1.3.0
@@ -41,19 +44,20 @@ jobs:
             linux/amd64
 
   deploy:
-      needs: build
-      runs-on: ubuntu-latest
-      name: Restart container instance
-      env:
-        OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
-        OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
-        OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
-        OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-        OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
-      steps:
-        - name: Retrieve the OCID of a named compartment in tenancy
-          uses: oracle-actions/run-oci-cli-command@v1.3.2
-          id: restart-container-instance
-          with:
-            command: "container-instances container-instance restart --container-instance-id ${{ secrets.OCI_CONTAINER_INSTANCE_OCID }}"
-
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    name: Restart container instance
+    env:
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+    steps:
+      - name: Restart configured container instance
+        uses: oracle-actions/run-oci-cli-command@v1.3.2
+        id: restart-container-instance
+        with:
+          command: "container-instances container-instance restart --container-instance-id ${{ secrets.OCI_CONTAINER_INSTANCE_OCID }}"

@@ -1,112 +1,40 @@
-import oci
-import sys
+"""Gunicorn application factory; settings come from OCI Vault or ignored local JSON."""
 import base64
-import argparse
-from flask_qrcode import QRcode
+import json
+import logging
+import os
+from pathlib import Path
+
+from b2sdk.v3 import B2Api, InMemoryAccountInfo
+from b2_repository import B2Repository
 from service import create_app
 
-if __name__ == "__main__":
-    # get variables from parser
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--local_cache', action='store_true', default=False, dest='use_local_cache', help='Use local (in-process) cache instead of OCI Redis')
-    parser.add_argument('--instance_principal', action='store_true', default=False, dest='use_instance_principal', help='Use Instance Principals for Authentication')
-    parser.add_argument('--resource_principal', action='store_true', default=False, dest='use_resource_principal', help='Use Resource Principals for Authentication')
-    parser.add_argument('--secret', default="", dest='secret', help='OCID of compartment with secrets vault')
-    parser.add_argument('--os_endpoint', default="https://objectstorage.us-ashburn-1.oraclecloud.com", dest='os_endpoint', help='Object Storage Endpoint')
-    parser.add_argument('--redis-url', default="", dest='redis_url', help='Redis URL')
-    parser.add_argument('--bucket', default="", dest='bucket', help='Bucket Name')
-    parser.add_argument('--username', default="", dest='username', help='Username')
-    parser.add_argument('--password', default="", dest='password', help='Password')
-    cmd = parser.parse_args()
 
-    # exit if required parameters and not specified
-    if len(sys.argv) < 1:
-        parser.print_help()
-        raise SystemExit
-
-    # build object storage client whether config file based on instance principal
-    if cmd.use_instance_principal:
-        try:
+def create_runtime_app():
+    # SDK diagnostic logs can include bearer URLs. Never enable SDK wire logging.
+    logging.getLogger('b2sdk').disabled = True
+    logging.getLogger('werkzeug').disabled = True
+    try:
+        local_file = os.environ.get('HM_CONFIG_FILE')
+        if local_file:
+            path = Path(local_file)
+            if path.stat().st_mode & 0o077:
+                raise ValueError('Local settings require owner-only file permissions.')
+            settings = json.loads(path.read_text())
+        else:
+            import oci
             signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
-            config = {'region': signer.region, 'tenancy': signer.tenancy_id}
-
-        except Exception as e:
-            print(e)
-            print("Error obtaining instance principal configuration, aborting")
-            raise SystemExit
-    elif cmd.use_resource_principal:
-        try:
-            signer = oci.auth.signers.get_resource_principals_signer()
-            config = {'region': signer.region, 'tenancy': signer.tenancy_id}
-
-        except Exception as e:
-            print(e)
-            print("Error obtaining resource principal configuration, aborting")
-            raise SystemExit
-    else:
-        try:
-            config = oci.config.from_file("~/.oci/config","DEFAULT")
-            signer = oci.signer.Signer(
-                    tenancy=config["tenancy"],
-                    user=config["user"],
-                    fingerprint=config["fingerprint"],
-                    private_key_file_location=config.get("key_file"),
-                    pass_phrase=oci.config.get_config_value_or_default(config, "pass_phrase"),
-                    private_key_content=config.get("key_content")
-                )
-        except Exception as e:
-            print(e)
-            print("Error building config for SDK config, aborting")
-            raise SystemExit
-
-    # If --secret passed in derive username, password, bucket from secret
-    if cmd.secret:
-        try:
-            vault_client = oci.vault.VaultsClient(config=config, signer=signer)
-            secret_client = oci.secrets.SecretsClient(config=config, signer=signer)
-
-            secrets_list = vault_client.list_secrets(cmd.secret)
-            expected_names = {"username", "password", "bucket", "redis-url"}
-            for secret in secrets_list.data:
-                if secret.secret_name not in expected_names:
-                    continue
-                response = secret_client.get_secret_bundle(secret.id)
-                base64_Secret_content = response.data.secret_bundle_content.content
-                base64_secret_bytes = base64_Secret_content.encode('ascii')
-                base64_message_bytes = base64.b64decode(base64_secret_bytes)
-                secret_content = base64_message_bytes.decode('ascii')
-                match secret.secret_name:
-                    case "username":
-                        cmd.username = secret_content
-                    case "password":
-                        cmd.password = secret_content
-                    case "bucket":
-                        cmd.bucket = secret_content
-                    case "redis-url":
-                        cmd.redis_url = secret_content
-        except Exception as e:
-            print(e)
-            print("Error building retrieving vaults and secrets, aborting")
-            raise SystemExit
-
-    # build the object storage client   
-    os_client = oci.object_storage.ObjectStorageClient(config, signer=signer)
-    namespace = os_client.get_namespace(retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
-
-    if not (cmd.username and cmd.password):
-        print("Username and password parameters are required. Pass in as arguments or derive from a secret.\n")
-        parser.print_help()
-        raise SystemExit
-
-    if not cmd.bucket:
-        print("Bucket parameter is required.\n")
-        parser.print_help()
-        raise SystemExit
-
-    # create flask app, enable QR generation, and run
-    app = create_app(cmd, os_client, namespace)
-    QRcode(app)
-    app.run(host="0.0.0.0", port=5000)
+            client = oci.secrets.SecretsClient({'region': signer.region}, signer=signer)
+            bundle = client.get_secret_bundle(os.environ['HM_CONFIG_SECRET_OCID']).data
+            settings = json.loads(base64.b64decode(bundle.secret_bundle_content.content).decode('utf-8'))
+        api = B2Api(InMemoryAccountInfo())
+        api.authorize_account(settings['B2_APPLICATION_KEY_ID'], settings['B2_APPLICATION_KEY'])
+        repository = B2Repository(api, settings['B2_BUCKET_ID'],
+                                  discovery_prefix=settings.get('TEST_DISCOVERY_PREFIX', ''))
+        return create_app(settings, repository)
+    except Exception:
+        raise RuntimeError('Application initialization failed; verify private settings and service access. Raw details suppressed.') from None
 
 
-
+if __name__ == '__main__':
+    create_runtime_app().run(host='127.0.0.1', port=5055, debug=False)

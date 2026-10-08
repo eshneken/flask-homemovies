@@ -1,0 +1,75 @@
+#cloud-config
+# Oracle Linux 9 A1 platform image; configuration contains references, never secret values.
+write_files:
+  - path: /etc/caddy/Caddyfile
+    permissions: '0644'
+    content: |
+      {
+          email ${acme_email}
+      }
+      ${hostname} {
+          reverse_proxy 127.0.0.1:5000
+      }
+      http://:8080 {
+          handle /health {
+              reverse_proxy 127.0.0.1:5000 {
+                  header_up Host ${hostname}
+              }
+          }
+          respond 404
+      }
+  - path: /usr/local/sbin/home-movies-deploy
+    owner: root:root
+    permissions: '0755'
+    encoding: b64
+    content: ${deploy_helper_b64}
+  - path: /etc/home-movies/deploy.json
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: ${deploy_config_b64}
+  - path: /etc/sudoers.d/home-movies-run-command
+    owner: root:root
+    permissions: '0440'
+    content: |
+      ocarun ALL=(root) NOPASSWD: /usr/local/sbin/home-movies-deploy
+  - path: /etc/home-movies/runtime.env
+    permissions: '0600'
+    content: |
+      HM_CONFIG_SECRET_OCID=${secret_ocid}
+  - path: /etc/systemd/system/home-movies.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Home Movies application
+      Wants=network-online.target
+      After=network-online.target
+      ConditionPathExists=/etc/home-movies/image.env
+      [Service]
+      EnvironmentFile=/etc/home-movies/image.env
+      ExecStart=/usr/bin/podman run --rm --name home-movies --pull=never --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs /tmp:rw,size=64m --publish 127.0.0.1:5000:5000 --env-file /etc/home-movies/runtime.env --volume /var/lib/home-movies/tokens:/var/lib/homemovies:Z $IMAGE
+      ExecStop=/usr/bin/podman stop --time 20 home-movies
+      Restart=on-failure
+      RestartSec=5
+      TimeoutStartSec=120
+      TimeoutStopSec=30
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - [dnf, install, -y, podman, dnf-plugins-core, policycoreutils, firewalld]
+  - [dnf, copr, enable, -y, '@caddy/caddy', epel-9-aarch64]
+  - [dnf, install, -y, caddy]
+  - [install, -d, -m, '0700', /etc/home-movies]
+  - [install, -d, -o, '10001', -g, '10001', -m, '0700', /var/lib/home-movies/tokens]
+  - [setsebool, -P, httpd_can_network_connect, '1']
+  - [systemctl, enable, --now, firewalld]
+  - [firewall-cmd, --permanent, --add-service=ssh]
+  - [firewall-cmd, --permanent, --add-service=http]
+  - [firewall-cmd, --permanent, --add-service=https]
+  - [firewall-cmd, --permanent, --add-port=8080/tcp]
+  - [firewall-cmd, --reload]
+  - [caddy, validate, --config, /etc/caddy/Caddyfile]
+  - [visudo, -cf, /etc/sudoers.d/home-movies-run-command]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, home-movies]
+  - [systemctl, enable, --now, caddy]

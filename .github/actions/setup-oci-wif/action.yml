@@ -1,0 +1,49 @@
+name: Home Movies OCI workload identity
+description: Exchange a repository/environment-bound GitHub token for an ephemeral OCI security token.
+inputs:
+  domain-url:
+    required: true
+    description: Destination identity-domain base URL.
+  client-id:
+    required: true
+    description: Dedicated non-admin Home Movies OAuth client ID.
+  client-secret:
+    required: true
+    description: Dedicated non-admin Home Movies OAuth client secret.
+  audience:
+    required: true
+    description: Audience registered in the dedicated trust.
+  service-user-ocid:
+    required: true
+    description: Dedicated service identity for this job.
+  tenancy-ocid:
+    required: true
+    description: Destination tenancy OCID.
+  region:
+    required: true
+    description: Destination region.
+  environment:
+    required: true
+    description: Exact protected GitHub environment used by the job.
+runs:
+  using: composite
+  steps:
+    - name: Install pinned token-exchange dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        python3 -m venv "$RUNNER_TEMP/home-movies-wif-venv"
+        "$RUNNER_TEMP/home-movies-wif-venv/bin/python" -m pip install --quiet -r scripts/requirements-wif.txt
+        echo "HM_WIF_PYTHON=$RUNNER_TEMP/home-movies-wif-venv/bin/python" >> "$GITHUB_ENV"
+    - name: Exchange and verify OCI workload identity
+      shell: bash
+      env:
+        OCI_WIF_DOMAIN_URL: ${{ inputs.domain-url }}
+        OCI_WIF_CLIENT_ID: ${{ inputs.client-id }}
+        OCI_WIF_CLIENT_SECRET: ${{ inputs.client-secret }}
+        OCI_WIF_AUDIENCE: ${{ inputs.audience }}
+        OCI_WIF_SERVICE_USER_OCID: ${{ inputs.service-user-ocid }}
+        OCI_TENANCY_OCID: ${{ inputs.tenancy-ocid }}
+        OCI_REGION: ${{ inputs.region }}
+        HM_GITHUB_ENVIRONMENT: ${{ inputs.environment }}
+      run: '"$HM_WIF_PYTHON" scripts/oci_wif.py'

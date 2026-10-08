@@ -14,6 +14,7 @@
             {% endif %}
             {% endwith %}
             <form method="POST" action="/login">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="field">
                     <div class="control">
                         <input class="input is-large" type="username" name="username" placeholder="Your Username" autofocus="">
@@ -42,7 +43,9 @@
 <script>
     function checkAuth() {
         // Perform an XHR request to check authentication
-        fetch('/check_auth?session_id={{session_id}}')
+        fetch('/check_auth', {method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': {{ csrf_token|tojson }}},
+            body: JSON.stringify({session_id: {{ session_id|tojson }}})})
             .then(response => response.json())
             .then(data => {
                 if (data.is_authenticated) {

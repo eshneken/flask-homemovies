@@ -1,0 +1,3 @@
+oci==2.168.2
+requests==2.34.2
+cryptography==46.0.7

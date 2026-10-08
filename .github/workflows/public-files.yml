@@ -1,0 +1,43 @@
+name: Application tests and public-file checks
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  public-files:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Check for private configuration and obvious credentials
+        run: python3 scripts/check_public_files.py
+      - name: Run offline tests and require greater than 90 percent coverage
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r scripts/requirements-test.txt
+          .venv/bin/python -m coverage run -m unittest discover -s scripts -p 'test_*.py'
+          .venv/bin/python -m coverage report
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.15.5
+          terraform_wrapper: false
+      - name: Validate and test infrastructure without cloud credentials
+        run: |
+          terraform fmt -check -recursive infra
+          for module in foundation application; do
+            terraform -chdir="infra/$module" init -backend=false -input=false -lockfile=readonly
+            terraform -chdir="infra/$module" validate
+            terraform -chdir="infra/$module" test
+          done

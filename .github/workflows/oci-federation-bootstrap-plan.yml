@@ -1,0 +1,31 @@
+name: Plan Home Movies federation bootstrap
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+permissions:
+  contents: read
+concurrency:
+  group: home-movies-federation-bootstrap
+  cancel-in-progress: false
+jobs:
+  plan:
+    if: startsWith(github.ref, 'refs/heads/') && (github.event_name == 'workflow_dispatch' || vars.ENABLE_HOME_MOVIES_BOOTSTRAP_PLAN == 'true')
+    environment: homemovies-bootstrap
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install pinned dependencies
+        run: |
+          python3 -m venv "$RUNNER_TEMP/home-movies-bootstrap-venv"
+          "$RUNNER_TEMP/home-movies-bootstrap-venv/bin/python" -m pip install --quiet -r scripts/requirements-wif.txt
+      - name: Inspect dedicated identity and trust changes without applying
+        env:
+          OCI_WIF_DOMAIN_URL: ${{ vars.OCI_WIF_DOMAIN_URL }}
+          OCI_WIF_CLIENT_ID: ${{ vars.OCI_WIF_CLIENT_ID }}
+          OCI_WIF_AUDIENCE: ${{ vars.OCI_WIF_AUDIENCE }}
+          OCI_BOOTSTRAP_CLIENT_ID: ${{ vars.OCI_BOOTSTRAP_CLIENT_ID }}
+          OCI_BOOTSTRAP_CLIENT_SECRET: ${{ secrets.OCI_BOOTSTRAP_CLIENT_SECRET }}
+        run: '"$RUNNER_TEMP/home-movies-bootstrap-venv/bin/python" scripts/oci_bootstrap_plan.py'

@@ -2,6 +2,36 @@
 .vscode
 .DS_Store
 
+# Private deployment configuration, Terraform state/plans, and generated credentials
+.local/
+.env.*
+!.env.example
+!.env.sample
+*.tfvars
+*.tfvars.json
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+*.key
+*.pem
+*.p12
+*.pfx
+*.csr
+*.crt
+*.srl
+csr.conf
+cert.conf
+.oci/
+*credentials*.json
+*credentials*.yaml
+*credentials*.yml
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+.b2_account_info*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -126,6 +156,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv-*/
 env/
 venv/
 ENV/

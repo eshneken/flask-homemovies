@@ -1,0 +1,5 @@
+{
+  "bucket_id": "<bucket ID from the B2 console>",
+  "application_key_id": "<keyID of the standard read-only key>",
+  "application_key": "<applicationKey shown once when creating the key>"
+}

@@ -1,0 +1,3 @@
+-r ../python_app/requirements.txt
+-r requirements-wif.txt
+coverage==7.16.2
