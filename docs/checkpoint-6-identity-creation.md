@@ -1,6 +1,19 @@
 # Checkpoint 6 — dedicated identities with the existing GitHub trust
 
-Status: owner-approved run partially completed; further identity creation is disabled.
+Status: complete. Dedicated identities exist and the shared trust update is verified.
+
+The owner-approved [shared-trust workflow](https://github.com/eshneken/flask-homemovies/actions/runs/37850807415)
+succeeded. A subsequent read-only inventory found zero remaining changes and
+verified that the original grocery OAuth client, audience, service-user mapping,
+trust identity and verification controls were preserved. Both exact Home Movies
+environment mappings are present. The one-time apply trigger is now disabled.
+The production environment's verified deployment service-user OCID is configured
+as `OCI_WIF_SERVICE_USER_OCID`; its value is not committed or printed.
+
+No OCI workload IAM grants, infrastructure resources or source changes were made.
+Permanent WIF verification remains disabled until the IAM bootstrap checkpoint.
+
+## Initial attempt and correction
 
 The approved run created both service users and both groups, but OCI rejected
 the trust because its GitHub issuer already belongs to the grocery trust in the
@@ -70,6 +83,8 @@ for review. Logs contain aggregate results and sanitized failures, with no
 service-user IDs, credentials or API response bodies in the helper's output.
 
 ## Owner checkpoint and execution
+
+These steps are complete; do not re-enable the apply trigger for routine deployments.
 
 1. Review this resource list and the branch files
    `scripts/oci_bootstrap_apply.py` and
