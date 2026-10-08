@@ -12,6 +12,9 @@ NAT gateway, Internet gateway, security groups, Bastion and one Oracle Linux 9
 A1 instance with 1 OCPU, 2 GB RAM and a 50 GB boot volume. IMDSv1 is disabled.
 The VM is named `homemovies-app`; no permanent SSH key or public VM IP is added.
 Bastion permits one operator IPv4 /32 and one-hour managed SSH sessions.
+Its service endpoint has no attached NSG, so the subnet security list permits
+outbound TCP 22 to the private application subnet. It adds no inbound rule;
+VM SSH ingress remains restricted to the Bastion endpoint’s /32.
 
 Terraform imports the seeded runtime dynamic group and narrows its membership
 to this VM. Its compartment policy grants access to one runtime secret and the

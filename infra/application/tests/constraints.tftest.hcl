@@ -79,6 +79,14 @@ run "restricted_maintenance" {
     condition     = oci_core_network_security_group_security_rule.ssh_from_bastion.tcp_options[0].destination_port_range[0].min == 22 && oci_core_network_security_group_security_rule.ssh_from_bastion.tcp_options[0].destination_port_range[0].max == 22
     error_message = "The maintenance ingress rule must expose only SSH."
   }
+  assert {
+    condition = (length(oci_core_security_list.application.ingress_security_rules) == 0 &&
+      one(oci_core_security_list.application.egress_security_rules).destination == var.subnet_cidr &&
+      one(oci_core_security_list.application.egress_security_rules).protocol == "6" &&
+      one(oci_core_security_list.application.egress_security_rules).tcp_options[0].min == 22 &&
+    one(oci_core_security_list.application.egress_security_rules).tcp_options[0].max == 22)
+    error_message = "Bastion needs outbound private-subnet SSH; do not add subnet-wide ingress."
+  }
 }
 run "reject_broad_maintenance_allowlist" {
   command = plan

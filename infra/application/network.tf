@@ -41,11 +41,21 @@ resource "oci_core_route_table" "application" {
     network_entity_id = oci_core_nat_gateway.application.id
   }
 }
-# Empty security list: inbound access comes only from the explicit NSGs below.
+# No subnet-wide ingress. The managed Bastion endpoint has no NSG and needs
+# outbound SSH to this private subnet; VM ingress remains restricted by its NSG.
 resource "oci_core_security_list" "application" {
   compartment_id = var.compartment_ocid
   vcn_id         = oci_core_vcn.application.id
-  display_name   = "home-movies-empty"
+  display_name   = "home-movies-baseline"
+  egress_security_rules {
+    destination      = var.subnet_cidr
+    destination_type = "CIDR_BLOCK"
+    protocol         = "6"
+    tcp_options {
+      min = 22
+      max = 22
+    }
+  }
 }
 resource "oci_core_subnet" "application" {
   compartment_id             = var.compartment_ocid
