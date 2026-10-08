@@ -65,3 +65,19 @@ The bootstrap environment variable/secret names and destination domain were
 verified without printing values. The missing reviewer gate and read-only plan
 repository opt-in were configured after the owner reported setup ready.
 The permanent WIF verification remains disabled until the new trust exists.
+
+## GitHub verification results
+
+The migration branch was published with a GitHub noreply commit identity. Local
+and remote `main` remained unchanged. The credential-free application/public-file
+job passed in GitHub. After the owner approved its reviewer gate, the
+[read-only federation bootstrap plan](https://github.com/eshneken/flask-homemovies/actions/runs/37847879178)
+passed and reported two service users, two groups and one trust to create, with
+zero trust modifications/deletions or IAM/workload changes.
+
+The initial Terraform CI job exposed missing Linux provider package hashes in
+the macOS-generated lockfiles. The follow-up adds authenticated OCI provider
+hashes for Linux AMD64 and macOS ARM64; CI retains readonly lockfile validation.
+The one-time bootstrap-plan push trigger is disabled after its successful run,
+and permanent WIF verification remains disabled pending identity/trust setup.
+No identity or workload resources have been created by this checkpoint.
