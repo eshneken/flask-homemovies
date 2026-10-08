@@ -36,7 +36,7 @@ jobs:
       - name: Validate and test infrastructure without cloud credentials
         run: |
           terraform fmt -check -recursive infra
-          for module in foundation application; do
+          for module in foundation application iam-bootstrap; do
             terraform -chdir="infra/$module" init -backend=false -input=false -lockfile=readonly
             terraform -chdir="infra/$module" validate
             terraform -chdir="infra/$module" test

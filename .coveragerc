@@ -6,6 +6,8 @@ source =
     oci_bootstrap_plan
     oci_bootstrap_apply
     oci_trust_patch
+    oci_bootstrap_token
+    oci_infra_bootstrap
 
 [report]
 fail_under = 91

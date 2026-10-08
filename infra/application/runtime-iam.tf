@@ -1,4 +1,9 @@
 # Dynamic groups have tenancy scope. Match only this VM, never the whole compartment.
+import {
+  for_each = nonsensitive(var.runtime_dynamic_group_ocid) == null ? {} : { bootstrap = nonsensitive(var.runtime_dynamic_group_ocid) }
+  to       = oci_identity_dynamic_group.runtime
+  id       = each.value
+}
 resource "oci_identity_dynamic_group" "runtime" {
   compartment_id = var.tenancy_ocid
   name           = "home-movies-runtime"

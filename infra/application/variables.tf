@@ -11,6 +11,11 @@ variable "compartment_name" {
   sensitive = true
 }
 variable "region" { type = string }
+variable "runtime_dynamic_group_ocid" {
+  type      = string
+  sensitive = true
+  default   = null
+}
 variable "oci_auth" {
   type    = string
   default = "SecurityToken"
