@@ -1,9 +1,21 @@
-# Checkpoint 6 — create dedicated federation identities
+# Checkpoint 6 — dedicated identities with the existing GitHub trust
 
-Status: implementation prepared; identity creation is disabled pending owner review.
+Status: owner-approved run partially completed; further identity creation is disabled.
 
-The preceding read-only GitHub plan found two service users, two groups and one
-trust to create. This checkpoint implements those writes through a separate
+The approved run created both service users and both groups, but OCI rejected
+the trust because its GitHub issuer already belongs to the grocery trust in the
+destination Default domain. A read-only inventory and the domain audit event
+verified this result. No IAM policies or workload infrastructure were created;
+the grocery trust was not modified. The one-time apply trigger was disabled.
+
+The original plan missed issuer uniqueness within the domain. The planner now
+checks this before any writes, with a regression test. The owner explicitly
+selected reuse of the grocery trust in the same domain. No additional identity
+domain or confidential application is needed. The existing Home Movies users
+and groups currently have no workload permissions and will be reused.
+
+The revised read-only plan finds zero identities or trusts to create and one
+existing trust to update. This checkpoint implements the writes through a separate
 GitHub Actions workflow on the migration branch. It uses the existing protected
 `homemovies-bootstrap` environment and its temporary administrator application.
 
@@ -15,7 +27,7 @@ GitHub Actions workflow on the migration branch. It uses the existing protected
 | Group `homemovies-infrastructure` | Contains only that service user |
 | Service user `homemovies-app-deploy` | Future application deployment identity |
 | Group `homemovies-app-deployers` | Contains only that service user |
-| Trust `homemovies-github-actions` | GitHub issuer/JWKS, dedicated audience and non-admin OAuth client |
+| Existing grocery GitHub trust | Add the Home Movies audience, non-admin client and two subject mappings |
 
 The trust maps the exact environment subject
 `repo:<repository>:environment:homemovies-infrastructure` to the infrastructure
@@ -28,16 +40,28 @@ describes these non-interactive identities; the
 describes the trust and impersonation mapping.
 
 The workflow creates no OCI IAM policy, VM, network, bucket, secret or dynamic
-group. It does not update or delete existing resources. The grocery identities
-and trust are outside its write paths. There are no source-tenancy operations.
+group. Its one shared-trust PATCH contains only three additive operations:
+one audience, one OAuth client and two service-user mappings. It preserves the
+trust's name, issuer, JWKS URL, active state, original grocery audience/client
+and original grocery mapping. There are no source-tenancy operations.
+
+The protected bootstrap environment variable `OCI_WIF_SHARED_TRUST_NAME`
+explicitly selects the existing trust. It is configured without putting its
+actual identifier or service-user IDs in the public repository. Separate
+project service users/groups continue to determine separate OCI IAM permissions;
+the issuer trust is intentionally shared.
 
 ## Safety and retry behavior
 
 Before writing, the helper reads the complete identity inventories and checks
-all dedicated names, existing group membership and any existing Home Movies
+all dedicated names, existing group membership and the selected shared
 trust. A conflict stops the job. Groups are created with their single service
 user already attached. Successful creation is followed by a fresh read-only
-inventory verifying that the expected resources and memberships exist.
+inventory verifying that the expected resources and memberships exist. A
+shared-trust update uses `If-Match` with the inspected SCIM version, so a
+concurrent change fails instead of being overwritten. The final read verifies
+that all original grocery clients, audiences, mapping values and verification
+controls remain intact. Server-added mapping metadata is preserved.
 
 An interrupted request can leave partial creates. The helper does not retry
 POST requests or delete partially created identities. Run the read-only plan
@@ -50,8 +74,8 @@ service-user IDs, credentials or API response bodies in the helper's output.
 1. Review this resource list and the branch files
    `scripts/oci_bootstrap_apply.py` and
    `.github/workflows/oci-federation-bootstrap-apply.yml`.
-2. Tell the agent to proceed with identity creation. No additional credentials
-   or environment variables are needed for this step.
+2. The owner has approved identity creation and reuse of the existing trust.
+   No additional credentials or confidential applications are needed.
 3. The agent will temporarily enable repository variable
    `ENABLE_HOME_MOVIES_BOOTSTRAP_APPLY=true` and push the migration branch to
    trigger its workflow. This flag is currently absent/disabled. The job still
@@ -80,7 +104,9 @@ will be reconciled before any real application Terraform plan or apply.
 No permanent OCI API signing key will be uploaded to Actions. No DNS change,
 B2 movie copy or public application deployment is part of this checkpoint.
 
-Validation: 88 offline Python tests pass with 97.49% combined statement coverage.
+Validation: 96 offline Python tests pass with 97.68% combined statement coverage.
 Tests cover guarded execution, exact membership, conflicts before writes,
 partial-success recovery, malformed responses, verification failure and
-sanitized output. CI runs these tests on every push and pull request.
+sanitized output, issuer collisions, additive shared-trust changes, concurrent
+modification and preservation of existing grocery configuration. CI runs these
+tests on every push and pull request.

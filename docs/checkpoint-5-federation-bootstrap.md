@@ -1,5 +1,9 @@
 # Checkpoint 5 — read-only GitHub federation bootstrap plan
 
+Historical checkpoint: the original plan missed the domain's issuer-uniqueness
+constraint. The corrected [Checkpoint 6](checkpoint-6-identity-creation.md) reuses
+the existing grocery GitHub trust with owner-authorized additive mappings.
+
 The OAuth credentials and destination discovery checks have passed locally.
 The read-only identity plan found two dedicated service users, two groups and one
 Home Movies trust to create. No existing trust needs modification or deletion.

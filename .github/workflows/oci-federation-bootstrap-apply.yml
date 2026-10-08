@@ -1,4 +1,4 @@
-name: Create reviewed Home Movies federation identities
+name: Configure reviewed Home Movies federation identities
 on:
   workflow_dispatch:
   push:
@@ -28,6 +28,7 @@ jobs:
           OCI_WIF_DOMAIN_URL: ${{ vars.OCI_WIF_DOMAIN_URL }}
           OCI_WIF_CLIENT_ID: ${{ vars.OCI_WIF_CLIENT_ID }}
           OCI_WIF_AUDIENCE: ${{ vars.OCI_WIF_AUDIENCE }}
+          OCI_WIF_SHARED_TRUST_NAME: ${{ vars.OCI_WIF_SHARED_TRUST_NAME }}
           OCI_BOOTSTRAP_CLIENT_ID: ${{ vars.OCI_BOOTSTRAP_CLIENT_ID }}
           OCI_BOOTSTRAP_CLIENT_SECRET: ${{ secrets.OCI_BOOTSTRAP_CLIENT_SECRET }}
         run: '"$RUNNER_TEMP/home-movies-bootstrap-venv/bin/python" scripts/oci_bootstrap_apply.py'

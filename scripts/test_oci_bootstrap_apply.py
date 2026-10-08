@@ -27,6 +27,16 @@ class Domain:
         if url.endswith('/oauth2/v1/token'):
             return Mock(status_code=200, json=lambda: {'access_token': '<test-only>'})
         kind = url.rsplit('/', 1)[-1]
+        if method == 'PATCH':
+            trust = next(t for t in self.resources['IdentityPropagationTrusts'] if t['id'] == kind)
+            if kwargs['headers']['If-Match'] != trust['meta']['version']:
+                return Mock(status_code=412, json=lambda: {})
+            for operation in kwargs['json']['Operations']:
+                if operation['op'] != 'add' or operation['path'] not in ('oauthClients', 'clientClaimValues', 'impersonationServiceUsers'):
+                    raise AssertionError('Only additive trust changes are allowed')
+                trust[operation['path']].extend(copy.deepcopy(operation['value']))
+            trust['meta']['version'] = '<test-version-2>'
+            return Mock(status_code=200, json=lambda: copy.deepcopy(trust))
         if method == 'GET':
             body = {'Resources': copy.deepcopy(self.resources[kind]), 'totalResults': len(self.resources[kind])}
             return Mock(status_code=200, json=lambda: body)
@@ -79,6 +89,15 @@ class BootstrapApplyTests(unittest.TestCase):
                 apply_module.apply(APPLY_ENV, domain.session)
             self.assertEqual(len(domain.session.request.call_args_list), 4)
 
+    def test_shared_issuer_conflict_stops_before_creating_users(self):
+        domain = Domain()
+        domain.resources['IdentityPropagationTrusts'][0]['issuer'] = 'https://token.actions.githubusercontent.com'
+        with self.assertRaisesRegex(WifError, 'GitHub issuer already belongs'):
+            apply_module.apply(APPLY_ENV, domain.session)
+        self.assertEqual(domain.resources['Users'], [])
+        self.assertEqual(domain.resources['Groups'], [])
+        self.assertEqual(domain.session.request.call_count, 4)
+
     def test_partial_success_is_reconciled_without_duplicate_user(self):
         domain = Domain()
         original = domain.request
@@ -125,8 +144,17 @@ class BootstrapApplyTests(unittest.TestCase):
 
     def test_incomplete_verification_is_failure(self):
         domain = Domain()
-        with patch.object(apply_module, 'plan', return_value={'service_users_to_create': 0,
-                'groups_to_create': 0, 'trusts_to_create': 1}), self.assertRaises(WifError):
+        original = domain.request
+        reads = 0
+        def incomplete(method, url, **kwargs):
+            nonlocal reads
+            if method == 'GET' and url.endswith('/IdentityPropagationTrusts'):
+                reads += 1
+                if reads == 2:
+                    return Mock(status_code=200, json=lambda: {'Resources': [], 'totalResults': 0})
+            return original(method, url, **kwargs)
+        domain.session.request.side_effect = incomplete
+        with self.assertRaises(WifError):
             apply_module.apply(APPLY_ENV, domain.session)
 
     def test_main_sanitizes_outputs_and_failure(self):

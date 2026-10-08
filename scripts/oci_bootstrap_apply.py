@@ -5,7 +5,8 @@ import sys
 
 import requests
 
-from oci_bootstrap_plan import GROUPS, USERS, USER_EXTENSION, desired_trust, inspect, plan
+from oci_bootstrap_plan import GROUPS, USERS, USER_EXTENSION, desired_trust, inspect
+from oci_trust_patch import additions, verify_preserved
 from oci_wif import WifError, request_json
 
 
@@ -45,15 +46,27 @@ def apply(env, session):
     if not trust_exists:
         request_json(session, 'POST', base + '/admin/v1/IdentityPropagationTrusts',
                      accepted_statuses=(201,), headers=headers, json=desired_trust(env, user_ids))
-    remaining = plan(env, session)
-    if any(remaining[k] for k in ('service_users_to_create', 'groups_to_create', 'trusts_to_create')):
+    elif env.get('OCI_WIF_SHARED_TRUST_NAME'):
+        changes = additions(trust_exists, desired_trust(env, user_ids))
+        if changes:
+            request_json(session, 'PATCH', base + '/admin/v1/IdentityPropagationTrusts/' + trust_exists['id'],
+                         headers=dict(headers, **{'If-Match': trust_exists['meta']['version']}),
+                         json={'schemas': ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+                               'Operations': changes})
+    after = inspect(env, session)
+    remaining = after[-1]
+    if any(remaining[k] for k in ('service_users_to_create', 'groups_to_create', 'trusts_to_create', 'trusts_to_modify')):
         raise WifError('Post-create inventory is incomplete; review before resuming.')
+    if trust_exists and env.get('OCI_WIF_SHARED_TRUST_NAME'):
+        verify_preserved(trust_exists, after[4])
     return {
         'operation': 'identity-create-verified',
         'service_users_created': summary['service_users_to_create'],
         'groups_created': summary['groups_to_create'],
         'trusts_created': summary['trusts_to_create'],
-        'existing_trusts_modified_or_deleted': 0,
+        'existing_trusts_modified_or_deleted': summary['trusts_to_modify'],
+        'existing_trusts_deleted': 0,
+        'existing_mappings_preserved': True,
         'iam_policies_changed': False,
         'workload_resources_changed': False,
     }

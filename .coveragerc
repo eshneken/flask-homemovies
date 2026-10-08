@@ -5,6 +5,7 @@ source =
     vm_deploy
     oci_bootstrap_plan
     oci_bootstrap_apply
+    oci_trust_patch
 
 [report]
 fail_under = 91

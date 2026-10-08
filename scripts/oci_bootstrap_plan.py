@@ -6,6 +6,7 @@ import sys
 import requests
 
 from oci_wif import WifError, request_json, require, secure_url
+from oci_trust_patch import additions, mappings
 
 USER_EXTENSION = 'urn:ietf:params:scim:schemas:oracle:idcs:extension:user:User'
 USERS = ('homemovies-infrastructure', 'homemovies-app-deploy')
@@ -19,7 +20,7 @@ def desired_trust(env, user_ids):
     audience = require(env, 'OCI_WIF_AUDIENCE')
     return {
         'schemas': ['urn:ietf:params:scim:schemas:oracle:idcs:IdentityPropagationTrust'],
-        'name': TRUST_NAME, 'type': 'JWT',
+        'name': env.get('OCI_WIF_SHARED_TRUST_NAME') or TRUST_NAME, 'type': 'JWT',
         'issuer': 'https://token.actions.githubusercontent.com',
         'publicKeyEndpoint': 'https://token.actions.githubusercontent.com/.well-known/jwks',
         'subjectType': 'User', 'clientClaimName': 'aud', 'clientClaimValues': [audience],
@@ -59,7 +60,13 @@ def inspect(env, session):
     users = list_resources(session, base, 'Users', headers, 'id,userName,' + USER_EXTENSION)
     groups = list_resources(session, base, 'Groups', headers, 'id,displayName,members')
     trusts = list_resources(session, base, 'IdentityPropagationTrusts', headers,
-                            'id,name,type,issuer,publicKeyEndpoint,subjectType,clientClaimName,clientClaimValues,oauthClients,allowImpersonation,active,impersonationServiceUsers')
+                            'id,name,type,issuer,publicKeyEndpoint,subjectType,clientClaimName,clientClaimValues,oauthClients,allowImpersonation,active,impersonationServiceUsers,meta,claimValidations,subjectClaimName,subjectMappingAttribute')
+    # OCI enforces issuer uniqueness within a domain, even when the audience
+    # and OAuth client differ. Detect this before creating any identities.
+    if any(t.get('issuer') == 'https://token.actions.githubusercontent.com'
+           and t.get('name') != (env.get('OCI_WIF_SHARED_TRUST_NAME') or TRUST_NAME) for t in trusts):
+        raise WifError('GitHub issuer already belongs to another trust in this domain; '
+                       'a separate domain or an explicitly reviewed shared trust is required.')
     user_ids = {}
     for name in USERS:
         matches = [u for u in users if u.get('userName') == name]
@@ -79,21 +86,32 @@ def inspect(env, session):
                 raise WifError('Existing dedicated group membership differs; review required.')
             existing_groups.add(name)
     desired = desired_trust(env, user_ids)
-    matches = [t for t in trusts if t.get('name') == TRUST_NAME]
+    matches = [t for t in trusts if t.get('name') == desired['name']]
     if len(matches) > 1:
         raise WifError('Dedicated trust name is ambiguous.')
-    if matches and any(matches[0].get(k) != v for k, v in desired.items() if k != 'schemas'):
-        raise WifError('Existing Home Movies trust differs; review required before replacement.')
+    shared = bool(env.get('OCI_WIF_SHARED_TRUST_NAME'))
+    if shared and not matches:
+        raise WifError('The explicitly selected shared trust does not exist.')
+    changes = []
+    if matches:
+        if shared:
+            changes = additions(matches[0], desired)
+        elif (any(matches[0].get(k) != v for k, v in desired.items()
+                  if k not in ('schemas', 'impersonationServiceUsers'))
+              or mappings(matches[0]) != mappings(desired)):
+            raise WifError('Existing Home Movies trust differs; review required before replacement.')
     summary = {
         'service_users_to_create': len(USERS) - len(user_ids),
         'groups_to_create': len(GROUPS) - len(existing_groups),
         'trusts_to_create': 0 if matches else 1,
-        'trusts_to_modify_or_delete': 0,
+        'trusts_to_modify_or_delete': int(bool(changes)),
+        'trusts_to_modify': int(bool(changes)),
+        'trusts_to_delete': 0,
         'iam_policies_changed': False,
         'workload_resources_changed': False,
         'operation': 'read-only-plan',
     }
-    return base, headers, user_ids, existing_groups, bool(matches), summary
+    return base, headers, user_ids, existing_groups, matches[0] if matches else None, summary
 
 
 def plan(env, session):
