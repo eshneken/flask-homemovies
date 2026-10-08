@@ -1,6 +1,6 @@
 # Checkpoint 7 — initial IAM and durable Terraform state
 
-Status: IAM/foundation apply complete; permanent WIF verification is next.
+Status: complete — IAM/foundation apply and both permanent WIF identities verified.
 This checkpoint does not provision a VM, network, NLB,
 Bastion, application secret or DNS record, and does not copy any movies.
 
@@ -33,9 +33,16 @@ mappings and IAM permissions. `OCI_PRIVATE_CONFIG_MASKS` is automatically
 populated in both environments from their variable values before verification;
 refresh it when those values change so composite-action inputs remain masked.
 
-## Resources and permissions to review
+The [permanent WIF verification](https://github.com/eshneken/flask-homemovies/actions/runs/37857979081)
+passed for both infrastructure and production environments without GitHub approval
+gates. Both identities exchanged GitHub credentials for an OCI session and
+performed a read-only namespace lookup. [CI](https://github.com/eshneken/flask-homemovies/actions/runs/37857979035)
+also passed, including 109 tests at 97.44% coverage and all eight Terraform mock
+tests. All three Home Movies environments have zero protection rules.
 
-Terraform proposes five resources in the destination tenancy:
+## Created resources and permissions
+
+Terraform created five resources in the destination tenancy:
 
 | Resource | Purpose and scope |
 |---|---|
@@ -141,7 +148,7 @@ Credential files are owner-only and are removed at job exit, including failure.
 The helper refuses to overwrite an existing OCI config. The local `~/.oci/config`
 is never edited. The source `DEFAULT` profile is not used for token minting.
 
-## Validation and remaining steps
+## Validation and next checkpoint
 
 Offline validation passes 109 Python tests with 97.44% statement coverage,
 including the new session-bound bootstrap helpers. Terraform mock tests cover
@@ -149,16 +156,12 @@ separate deployment/infrastructure permissions and reuse of the transferred
 runtime group. Existing tests continue to verify private VM placement, the
 50 GB/1 OCPU budget and mandatory IMDSv2.
 
-1. Run the read-only bootstrap plan in GitHub and report it at a chat checkpoint.
-2. Review counts and this permission/resource list; run the apply operation with
-   a fresh session if necessary, without a separate GitHub approval gate.
-3. Verify private bucket/Vault/key, scoped IAM grants and runtime group handoff.
-   Configure the infrastructure environment from private bootstrap metadata.
-4. Enable permanent WIF verification and test both mapped service identities.
-   Remove temporary bootstrap credentials and disable its one-time triggers.
-5. Prepare the actual application Terraform plan as the next checkpoint. It
-   will import and narrow the runtime group, and create the private A1 VM/NLB
-   architecture. No VM may be launched with IMDSv1 enabled.
+The bootstrap plan, apply, state handoff and permanent WIF verification above are
+complete. Temporary session credentials were removed and bootstrap triggers are
+disabled. The next checkpoint prepares application Terraform and the deployment
+workflow using the permanent identities. It will import and narrow the runtime
+group, and create the private A1 VM/NLB architecture. No VM may be launched with
+IMDSv1 enabled. The default branch and running source application remain unchanged.
 
 References: [Oracle session authentication](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/clitoken.htm),
 [Oracle Run Command permission reference](https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm),
