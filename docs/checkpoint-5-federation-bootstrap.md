@@ -1,5 +1,9 @@
 # Checkpoint 5 — read-only GitHub federation bootstrap plan
 
+Historical checkpoint: GitHub reviewer requirements described below were removed
+at the owner’s request during Checkpoint 7. Subsequent jobs run without approval
+gates and progress is reported at chat checkpoints.
+
 Historical checkpoint: the original plan missed the domain's issuer-uniqueness
 constraint. The corrected [Checkpoint 6](checkpoint-6-identity-creation.md) reuses
 the existing grocery GitHub trust with owner-authorized additive mappings.

@@ -4,7 +4,8 @@ data "oci_identity_compartment" "application" {
 }
 
 data "oci_objectstorage_namespace" "current" {
-  compartment_id = var.tenancy_ocid
+  # Use the authenticated tenancy; an explicit compartmentId requires broader
+  # namespace administration than this data lookup needs.
 }
 
 resource "oci_objectstorage_bucket" "state" {

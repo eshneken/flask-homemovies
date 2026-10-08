@@ -1,7 +1,7 @@
 # Checkpoint 7 — initial IAM and durable Terraform state
 
-Status: read-only GitHub plan passed; apply created the foundation and runtime
-group, and is resuming the automation policy creation. This checkpoint does not provision a VM, network, NLB,
+Status: IAM/foundation apply complete; permanent WIF verification is next.
+This checkpoint does not provision a VM, network, NLB,
 Bastion, application secret or DNS record, and does not copy any movies.
 
 The [approved read-only plan](https://github.com/eshneken/flask-homemovies/actions/runs/37852893094)
@@ -14,9 +14,24 @@ dynamic group. Automation policy creation failed with OCI InvalidParameter;
 namespace permissions are corrected to the supported `read` verb. Both module
 states are private in the OCI backend and the retry uses those states.
 
+The [resumed apply](https://github.com/eshneken/flask-homemovies/actions/runs/37855489934)
+succeeded. Read-only verification confirmed the automation policy exists and the
+runtime group is no longer in the initial IAM state. Private bootstrap output
+metadata is saved in OCI Object Storage. The one-time trigger is disabled and
+the temporary session secret/local bundle have been removed.
+
 The owner subsequently requested removal of GitHub approval gates. The bootstrap
 environment's reviewer requirement is removed. Progress and review now happen at
 chat checkpoints; no GitHub approval is required for each plan or apply.
+The new `homemovies-infrastructure` environment likewise has no reviewer gate.
+Its variables identify the separate infrastructure service user and private
+state/Vault outputs. Its `OCI_WIF_CLIENT_SECRET` environment secret is configured
+with the existing Home Movies non-admin exchange client secret, without rotation.
+The exchange client is active.
+Production and infrastructure share the OAuth client, with separate subject
+mappings and IAM permissions. `OCI_PRIVATE_CONFIG_MASKS` is automatically
+populated in both environments from their variable values before verification;
+refresh it when those values change so composite-action inputs remain masked.
 
 ## Resources and permissions to review
 
@@ -86,10 +101,10 @@ the snapshot before triggering a run if those variables change. Using the privat
 snapshot prevents GitHub from echoing raw infrastructure identifiers before the
 helper can mask them. No API key or runtime B2/password secret is in the snapshot.
 
-The helper accepts only a hosted runner in the protected environment, with an
+The helper accepts only a hosted runner in the bootstrap environment, with an
 explicit `plan` or `apply` operation on a branch. It requires at least 35 minutes
-of token validity at entry; the GitHub job is bounded to 30 minutes. The owner
-must approve promptly or a new session must be minted. The session and temporary
+of token validity at entry; the GitHub job is bounded to 30 minutes. The job
+must start promptly or a new session must be minted. The session and temporary
 key can exercise the local administrator's authority during that hour, which is
 why the session is temporary and the job uses the reviewed migration branch.
 
@@ -128,7 +143,7 @@ is never edited. The source `DEFAULT` profile is not used for token minting.
 
 ## Validation and remaining steps
 
-Offline validation passes 106 Python tests with 97.49% statement coverage,
+Offline validation passes 109 Python tests with 97.44% statement coverage,
 including the new session-bound bootstrap helpers. Terraform mock tests cover
 separate deployment/infrastructure permissions and reuse of the transferred
 runtime group. Existing tests continue to verify private VM placement, the

@@ -8,6 +8,7 @@ source =
     oci_trust_patch
     oci_bootstrap_token
     oci_infra_bootstrap
+    mask_configuration
 
 [report]
 fail_under = 91

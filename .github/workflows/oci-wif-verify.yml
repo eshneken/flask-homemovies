@@ -10,10 +10,14 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [homemovies-production, homemovies-infrastructure]
     # The repository-level opt-in supports testing a new workflow on a branch,
     # before it exists on the default branch and can be manually dispatched.
     if: startsWith(github.ref, 'refs/heads/') && (github.event_name == 'workflow_dispatch' || vars.ENABLE_HOME_MOVIES_WIF == 'true')
-    environment: homemovies-production
+    environment: ${{ matrix.environment }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,6 +26,13 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - name: Mask private configuration before action inputs are logged
+        env:
+          OCI_PRIVATE_CONFIG_MASKS: ${{ secrets.OCI_PRIVATE_CONFIG_MASKS }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/home-movies-mask-venv"
+          "$RUNNER_TEMP/home-movies-mask-venv/bin/python" -m pip install --quiet -r scripts/requirements-wif.txt
+          "$RUNNER_TEMP/home-movies-mask-venv/bin/python" scripts/mask_configuration.py
       - uses: ./.github/actions/setup-oci-wif
         with:
           domain-url: ${{ vars.OCI_WIF_DOMAIN_URL }}
@@ -31,7 +42,7 @@ jobs:
           service-user-ocid: ${{ vars.OCI_WIF_SERVICE_USER_OCID }}
           tenancy-ocid: ${{ vars.OCI_TENANCY_OCID }}
           region: ${{ vars.OCI_REGION }}
-          environment: homemovies-production
+          environment: ${{ matrix.environment }}
       - name: Remove ephemeral credentials
         if: always()
         shell: bash

@@ -2,6 +2,10 @@
 
 Status: complete. Dedicated identities exist and the shared trust update is verified.
 
+Subsequent owner preference: GitHub reviewer gates were removed during
+Checkpoint 7. Historical approval instructions below describe the completed
+identity setup; future plans/applies proceed automatically between chat checkpoints.
+
 The owner-approved [shared-trust workflow](https://github.com/eshneken/flask-homemovies/actions/runs/37850807415)
 succeeded. A subsequent read-only inventory found zero remaining changes and
 verified that the original grocery OAuth client, audience, service-user mapping,
