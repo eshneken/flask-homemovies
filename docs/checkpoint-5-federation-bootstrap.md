@@ -81,3 +81,7 @@ hashes for Linux AMD64 and macOS ARM64; CI retains readonly lockfile validation.
 The one-time bootstrap-plan push trigger is disabled after its successful run,
 and permanent WIF verification remains disabled pending identity/trust setup.
 No identity or workload resources have been created by this checkpoint.
+
+The subsequent [identity-creation checkpoint](checkpoint-6-identity-creation.md)
+now provides a disabled, separately reviewed apply workflow. Initial OCI IAM
+permissions remain a later checkpoint.

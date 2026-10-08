@@ -4,6 +4,7 @@ source =
     oci_wif
     vm_deploy
     oci_bootstrap_plan
+    oci_bootstrap_apply
 
 [report]
 fail_under = 91

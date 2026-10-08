@@ -44,7 +44,7 @@ def list_resources(session, base, kind, headers, attributes):
     return resources
 
 
-def plan(env, session):
+def inspect(env, session):
     base = require(env, 'OCI_WIF_DOMAIN_URL').rstrip('/')
     parsed = secure_url(base)
     if parsed.path or parsed.query:
@@ -57,7 +57,7 @@ def plan(env, session):
         raise WifError('Administrator token response was incomplete.')
     headers = {'Authorization': 'Bearer ' + token}
     users = list_resources(session, base, 'Users', headers, 'id,userName,' + USER_EXTENSION)
-    groups = list_resources(session, base, 'Groups', headers, 'id,displayName')
+    groups = list_resources(session, base, 'Groups', headers, 'id,displayName,members')
     trusts = list_resources(session, base, 'IdentityPropagationTrusts', headers,
                             'id,name,type,issuer,publicKeyEndpoint,subjectType,clientClaimName,clientClaimValues,oauthClients,allowImpersonation,active,impersonationServiceUsers')
     user_ids = {}
@@ -73,6 +73,10 @@ def plan(env, session):
         if len(matches) > 1 or (matches and not matches[0].get('id')):
             raise WifError('A dedicated group name conflicts with existing identities.')
         if matches:
+            expected = user_ids.get(USERS[GROUPS.index(name)])
+            members = matches[0].get('members', [])
+            if not expected or not isinstance(members, list) or len(members) != 1 or members[0].get('value') != expected or members[0].get('type', 'User') != 'User':
+                raise WifError('Existing dedicated group membership differs; review required.')
             existing_groups.add(name)
     desired = desired_trust(env, user_ids)
     matches = [t for t in trusts if t.get('name') == TRUST_NAME]
@@ -80,7 +84,7 @@ def plan(env, session):
         raise WifError('Dedicated trust name is ambiguous.')
     if matches and any(matches[0].get(k) != v for k, v in desired.items() if k != 'schemas'):
         raise WifError('Existing Home Movies trust differs; review required before replacement.')
-    return {
+    summary = {
         'service_users_to_create': len(USERS) - len(user_ids),
         'groups_to_create': len(GROUPS) - len(existing_groups),
         'trusts_to_create': 0 if matches else 1,
@@ -89,6 +93,11 @@ def plan(env, session):
         'workload_resources_changed': False,
         'operation': 'read-only-plan',
     }
+    return base, headers, user_ids, existing_groups, bool(matches), summary
+
+
+def plan(env, session):
+    return inspect(env, session)[-1]
 
 
 def main():

@@ -35,7 +35,7 @@ class BootstrapPlanTests(unittest.TestCase):
 
     def test_existing_matching_identities_produce_no_create_plan(self):
         users = [{'userName': n, 'id': n + '-id', bootstrap.USER_EXTENSION: {'serviceUser': True}} for n in bootstrap.USERS]
-        groups = [{'displayName': n, 'id': n + '-id'} for n in bootstrap.GROUPS]
+        groups = [{'displayName': n, 'id': n + '-id', 'members': [{'value': u + '-id', 'type': 'User'}]} for n, u in zip(bootstrap.GROUPS, bootstrap.USERS)]
         trust = bootstrap.desired_trust(ENV, {u['userName']: u['id'] for u in users})
         result = bootstrap.plan(ENV, session_for(users, groups, [trust]))
         self.assertEqual([result[k] for k in ['service_users_to_create','groups_to_create','trusts_to_create']], [0,0,0])

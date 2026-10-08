@@ -35,10 +35,10 @@ def secure_url(value, expected_host=None):
     return parsed
 
 
-def request_json(session, method, url, **kwargs):
+def request_json(session, method, url, *, accepted_statuses=(200,), **kwargs):
     try:
         response = session.request(method, url, timeout=30, allow_redirects=False, **kwargs)
-        if response.status_code != 200:
+        if response.status_code not in accepted_statuses:
             raise WifError('Token request failed; HTTP status ' + str(response.status_code))
         result = response.json()
         if not isinstance(result, dict):
