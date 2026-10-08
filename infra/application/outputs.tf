@@ -15,3 +15,7 @@ output "private_ip" {
   value     = oci_core_instance.web.private_ip
   sensitive = true
 }
+output "runtime_secret_ocid" {
+  value     = oci_vault_secret.runtime.id
+  sensitive = true
+}

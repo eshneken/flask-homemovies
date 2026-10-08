@@ -1,5 +1,6 @@
 #cloud-config
 # Oracle Linux 9 A1 platform image; configuration contains references, never secret values.
+hostname: homemovies-app
 write_files:
   - path: /etc/caddy/Caddyfile
     permissions: '0644'

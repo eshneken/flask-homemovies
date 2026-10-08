@@ -1,0 +1,73 @@
+name: Home Movies application infrastructure
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+    paths: ['infra/application/**', 'scripts/oci_application_infra.py', '.github/workflows/oci-application-infra.yml']
+permissions:
+  contents: read
+concurrency:
+  group: home-movies-infrastructure
+  cancel-in-progress: false
+jobs:
+  infrastructure:
+    if: vars.ENABLE_HOME_MOVIES_APPLICATION_INFRA == 'true' && startsWith(github.ref, 'refs/heads/')
+    environment: homemovies-infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Mask private configuration
+        env:
+          OCI_PRIVATE_CONFIG_MASKS: ${{ secrets.OCI_PRIVATE_CONFIG_MASKS }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/home-movies-mask-venv"
+          "$RUNNER_TEMP/home-movies-mask-venv/bin/python" -m pip install --quiet -r scripts/requirements-wif.txt
+          "$RUNNER_TEMP/home-movies-mask-venv/bin/python" scripts/mask_configuration.py
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.15.5
+          terraform_wrapper: false
+      - uses: ./.github/actions/setup-oci-wif
+        with:
+          domain-url: ${{ vars.OCI_WIF_DOMAIN_URL }}
+          client-id: ${{ vars.OCI_WIF_CLIENT_ID }}
+          client-secret: ${{ secrets.OCI_WIF_CLIENT_SECRET }}
+          audience: ${{ vars.OCI_WIF_AUDIENCE }}
+          service-user-ocid: ${{ vars.OCI_WIF_SERVICE_USER_OCID }}
+          tenancy-ocid: ${{ vars.OCI_TENANCY_OCID }}
+          region: ${{ vars.OCI_REGION }}
+          environment: homemovies-infrastructure
+      - name: Validate Terraform before planning
+        run: |
+          terraform fmt -check -recursive infra
+          terraform -chdir=infra/application init -backend=false -input=false -lockfile=readonly
+          terraform -chdir=infra/application validate
+          terraform -chdir=infra/application test
+      - name: Plan or apply application infrastructure
+        env:
+          HM_GITHUB_ENVIRONMENT: homemovies-infrastructure
+          ENABLE_HOME_MOVIES_APPLICATION_INFRA: ${{ vars.ENABLE_HOME_MOVIES_APPLICATION_INFRA }}
+          HOME_MOVIES_APPLICATION_OPERATION: ${{ vars.HOME_MOVIES_APPLICATION_OPERATION }}
+          OCI_TENANCY_OCID: ${{ vars.OCI_TENANCY_OCID }}
+          OCI_COMPARTMENT_OCID: ${{ vars.OCI_COMPARTMENT_OCID }}
+          OCI_COMPARTMENT_NAME: ${{ vars.OCI_COMPARTMENT_NAME }}
+          OCI_REGION: ${{ vars.OCI_REGION }}
+          OCI_AVAILABILITY_DOMAIN: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
+          OCI_IMAGE_OCID: ${{ vars.OCI_IMAGE_OCID }}
+          OCI_STATE_BUCKET_NAME: ${{ vars.OCI_STATE_BUCKET_NAME }}
+          OCI_BASTION_CLIENT_CIDR: ${{ vars.OCI_BASTION_CLIENT_CIDR }}
+          APP_HOSTNAME: ${{ vars.APP_HOSTNAME }}
+          ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+        run: '"$HM_WIF_PYTHON" scripts/oci_application_infra.py'
+      - name: Remove ephemeral OCI credentials
+        if: always()
+        run: |
+          if [ -n "${HM_WIF_PYTHON:-}" ]; then
+            "$HM_WIF_PYTHON" scripts/oci_wif.py cleanup
+          fi

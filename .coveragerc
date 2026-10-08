@@ -9,6 +9,8 @@ source =
     oci_bootstrap_token
     oci_infra_bootstrap
     mask_configuration
+    oci_application_infra
+    oci_app_deploy
 
 [report]
 fail_under = 91

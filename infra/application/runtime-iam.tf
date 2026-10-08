@@ -15,7 +15,7 @@ resource "oci_identity_policy" "runtime" {
   name           = "home-movies-runtime"
   description    = "Access one runtime secret and this instance's own Run Command executions"
   statements = [
-    "Allow dynamic-group id ${oci_identity_dynamic_group.runtime.id} to read secret-bundles in compartment id ${var.compartment_ocid} where target.secret.id = '${var.runtime_secret_ocid}'",
+    "Allow dynamic-group id ${oci_identity_dynamic_group.runtime.id} to read secret-bundles in compartment id ${var.compartment_ocid} where target.secret.id = '${oci_vault_secret.runtime.id}'",
     "Allow dynamic-group id ${oci_identity_dynamic_group.runtime.id} to use instance-agent-command-execution-family in compartment id ${var.compartment_ocid} where request.instance.id = target.instance.id",
   ]
 }

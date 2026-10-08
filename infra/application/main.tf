@@ -4,7 +4,7 @@ data "oci_identity_compartment" "application" {
 resource "oci_core_instance" "web" {
   compartment_id      = var.compartment_ocid
   availability_domain = var.availability_domain
-  display_name        = "home-movies-web"
+  display_name        = "homemovies-app"
   shape               = "VM.Standard.A1.Flex"
   shape_config {
     ocpus         = 1
@@ -38,7 +38,7 @@ resource "oci_core_instance" "web" {
     user_data = base64encode(templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
       hostname          = var.hostname
       acme_email        = var.acme_email
-      secret_ocid       = var.runtime_secret_ocid
+      secret_ocid       = oci_vault_secret.runtime.id
       deploy_helper_b64 = base64encode(file("${path.module}/../../scripts/vm_deploy.py"))
       deploy_config_b64 = base64encode(jsonencode({ hostname = var.hostname, image_repository = var.image_repository }))
     }))

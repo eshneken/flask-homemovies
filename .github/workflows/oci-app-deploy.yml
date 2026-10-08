@@ -1,0 +1,98 @@
+name: Build and deploy Home Movies ARM64 application
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+    paths: ['python_app/**', 'scripts/**', '.coveragerc', '.github/actions/setup-oci-wif/**', '.github/workflows/oci-app-deploy.yml']
+permissions:
+  contents: read
+concurrency:
+  group: home-movies-application-release
+  cancel-in-progress: false
+jobs:
+  build:
+    if: vars.ENABLE_HOME_MOVIES_IMAGE_BUILD == 'true' && startsWith(github.ref, 'refs/heads/')
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test application on ARM64 before publishing
+        run: |
+          python3 scripts/check_public_files.py
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --quiet -r scripts/requirements-test.txt
+          .venv/bin/python -m coverage run -m unittest discover -s scripts -p 'test_*.py'
+          .venv/bin/python -m coverage report
+      - name: Build and publish software-only image
+        id: image
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          image_repository="ghcr.io/${GITHUB_REPOSITORY,,}"
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker buildx build --platform linux/arm64 --provenance=false --push \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --tag "$image_repository:$GITHUB_SHA" --metadata-file "$RUNNER_TEMP/image-metadata.json" python_app
+          IMAGE_REPOSITORY="$image_repository" python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          digest = json.loads((Path(os.environ['RUNNER_TEMP']) / 'image-metadata.json').read_text())['containerimage.digest']
+          assert re.fullmatch(r'sha256:[a-f0-9]{64}', digest)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('image=' + os.environ['IMAGE_REPOSITORY'] + '@' + digest + '\n')
+          PY
+      - name: Remove registry session
+        if: always()
+        run: docker logout ghcr.io
+  deploy:
+    needs: build
+    if: vars.ENABLE_HOME_MOVIES_APP_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: homemovies-production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Mask private configuration
+        env:
+          OCI_PRIVATE_CONFIG_MASKS: ${{ secrets.OCI_PRIVATE_CONFIG_MASKS }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/home-movies-mask-venv"
+          "$RUNNER_TEMP/home-movies-mask-venv/bin/python" -m pip install --quiet -r scripts/requirements-wif.txt
+          "$RUNNER_TEMP/home-movies-mask-venv/bin/python" scripts/mask_configuration.py
+      - uses: ./.github/actions/setup-oci-wif
+        with:
+          domain-url: ${{ vars.OCI_WIF_DOMAIN_URL }}
+          client-id: ${{ vars.OCI_WIF_CLIENT_ID }}
+          client-secret: ${{ secrets.OCI_WIF_CLIENT_SECRET }}
+          audience: ${{ vars.OCI_WIF_AUDIENCE }}
+          service-user-ocid: ${{ vars.OCI_WIF_SERVICE_USER_OCID }}
+          tenancy-ocid: ${{ vars.OCI_TENANCY_OCID }}
+          region: ${{ vars.OCI_REGION }}
+          environment: homemovies-production
+      - name: Submit deployment to the private VM
+        env:
+          HM_GITHUB_ENVIRONMENT: homemovies-production
+          OCI_INSTANCE_OCID: ${{ vars.OCI_INSTANCE_OCID }}
+          OCI_COMPARTMENT_OCID: ${{ vars.OCI_COMPARTMENT_OCID }}
+          APP_IMAGE: ${{ needs.build.outputs.image }}
+        run: '"$HM_WIF_PYTHON" scripts/oci_app_deploy.py'
+      - name: Remove ephemeral OCI credentials
+        if: always()
+        run: |
+          if [ -n "${HM_WIF_PYTHON:-}" ]; then
+            "$HM_WIF_PYTHON" scripts/oci_wif.py cleanup
+          fi

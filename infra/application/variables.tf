@@ -36,7 +36,11 @@ variable "image_ocid" {
   type      = string
   sensitive = true
 }
-variable "runtime_secret_ocid" {
+variable "vault_ocid" {
+  type      = string
+  sensitive = true
+}
+variable "vault_key_ocid" {
   type      = string
   sensitive = true
 }

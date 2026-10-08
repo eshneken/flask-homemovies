@@ -1,4 +1,9 @@
 mock_provider "oci" {}
+override_resource {
+  target          = oci_vault_secret.runtime
+  values          = { id = "test-secret" }
+  override_during = plan
+}
 variables {
   tenancy_ocid        = "test-tenancy"
   compartment_ocid    = "test-compartment"
@@ -6,7 +11,8 @@ variables {
   region              = "us-ashburn-1"
   availability_domain = "test-ad"
   image_ocid          = "test-image"
-  runtime_secret_ocid = "test-secret"
+  vault_ocid          = "test-vault"
+  vault_key_ocid      = "test-key"
   hostname            = "movies.example.com"
   acme_email          = "admin@example.com"
   bastion_client_cidr = "192.0.2.1/32"
@@ -52,6 +58,10 @@ run "free_budget_and_private_host" {
   assert {
     condition     = strcontains(base64decode(oci_core_instance.web.metadata.user_data), "127.0.0.1:5000:5000")
     error_message = "The application container must bind only to loopback."
+  }
+  assert {
+    condition     = oci_vault_secret.runtime.secret_content[0].content == base64encode("{}")
+    error_message = "Terraform may initialize only an empty placeholder, never runtime credentials."
   }
 }
 
