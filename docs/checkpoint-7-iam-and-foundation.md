@@ -1,8 +1,15 @@
 # Checkpoint 7 — initial IAM and durable Terraform state
 
-Status: prepared for a read-only GitHub plan. No resources from this checkpoint
+Status: read-only GitHub plan passed; gated apply is the next step. No resources from this checkpoint
 have been created yet. This checkpoint does not provision a VM, network, NLB,
 Bastion, application secret or DNS record, and does not copy any movies.
+
+The [approved read-only plan](https://github.com/eshneken/flask-homemovies/actions/runs/37852893094)
+passed with three foundation creates and two initial IAM creates: five creates,
+zero updates, zero deletes and zero imports. The temporary GitHub session secret
+and its local bundle were removed after completion, and the one-time trigger was
+disabled. Apply uses a freshly minted session and a separate GitHub deployment
+approval; approving the plan job did not create resources.
 
 ## Resources and permissions to review
 
