@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'python_app'))
-from b2_media import B2Media, MediaAccessError, movie_prefix, rewrite_manifest
+from b2_media import B2Media, MediaAccessError, movie_prefix, rewrite_manifest, media_kind, movie_title
 from b2_policy import REQUIRED
 
 
@@ -56,6 +56,47 @@ class ManifestTests(unittest.TestCase):
 
 
 class GrantTests(unittest.TestCase):
+    def test_mp4_type_and_title_preserve_unicode_and_reject_hls_segments(self):
+        self.assertEqual(media_kind('Year/Example é.MP4'), 'mp4')
+        self.assertEqual(movie_title('Year/Example é.MP4'), 'Example é')
+        for entry in ('Year/Example.hls/init.mp4', '../bad.mp4', '/bad.mp4', 'bad\n.mp4', 'bad\\name.mp4', 'bad.txt', None):
+            with self.subTest(entry=entry), self.assertRaises(MediaAccessError):
+                media_kind(entry)
+
+    def test_mp4_native_grant_checks_entire_filename_prefix_and_exact_url(self):
+        entry = 'Year/Example é.mp4'
+        media = B2Media(self.api, 'bucket', [entry], clock=lambda: self.now)
+        self.api.session.list_file_names.return_value = {'files': [{'fileName': entry}], 'nextFileName': None}
+        grant = media.grant(entry, 1040)
+        self.assertEqual(grant.exact_name, entry)
+        self.bucket.get_download_authorization.assert_called_once_with(entry, 35)
+        self.assertEqual(self.api.session.list_file_names.call_count, 2)
+        media.media_url(self.bucket, entry, grant)
+        with self.assertRaises(MediaAccessError):
+            media.media_url(self.bucket, entry + '.extra', grant)
+
+    def test_mp4_missing_collision_hidden_non_catalog_and_listing_failure_fail_closed(self):
+        entry = 'Example.mp4'
+        media = B2Media(self.api, 'bucket', [entry], clock=lambda: self.now)
+        for listing in ({'files': []}, {'files': [{'fileName': entry}, {'fileName': entry + '.notes'}]},
+                        {'files': [{'fileName': entry}], 'nextFileName': entry + '.extra'}):
+            self.api.session.list_file_names.return_value = listing
+            with self.assertRaises(MediaAccessError):
+                media.grant(entry, 2000)
+        self.bucket.get_download_authorization.assert_not_called()
+        self.api.session.list_file_names.side_effect = RuntimeError('unavailable')
+        with self.assertRaises(RuntimeError):
+            media.grant(entry, 2000)
+
+    def test_mp4_collision_appearing_during_grant_prevents_url_release(self):
+        entry = 'Example.mp4'
+        media = B2Media(self.api, 'bucket', [entry], clock=lambda: self.now)
+        self.api.session.list_file_names.side_effect = [
+            {'files': [{'fileName': entry}]},
+            {'files': [{'fileName': entry}, {'fileName': entry + '.extra'}]}]
+        with self.assertRaises(MediaAccessError):
+            media.grant(entry, 2000)
+
     def setUp(self):
         self.now = 1000
         self.api = Mock()

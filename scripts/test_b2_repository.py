@@ -23,9 +23,10 @@ class RepositoryTests(unittest.TestCase):
 
     def test_discovery_preserves_exact_names_and_excludes_fixtures_and_segments(self):
         names = ['Year/Example é.hls/output.m3u8', 'Year/Example é.hls/segment.ts',
-                 '_migration-test/Test.hls/output.m3u8']
+                 '_migration-test/Test.hls/output.m3u8', 'Year/Standalone é.MP4',
+                 'Year/Example é.hls/init.mp4', '_migration-test/test.mp4']
         self.bucket.ls.return_value = [(SimpleNamespace(file_name=n), None) for n in names]
-        self.assertEqual(self.repo.catalog(), (names[0],))
+        self.assertEqual(self.repo.catalog(), (names[0], names[3]))
 
     def test_catalog_refreshes_after_five_minutes_without_returning_stale_on_failure(self):
         self.bucket.ls.return_value = [(SimpleNamespace(file_name='Example.hls/output.m3u8'), None)]

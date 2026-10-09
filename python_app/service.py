@@ -12,7 +12,7 @@ from flask_qrcode import QRcode
 from werkzeug.security import check_password_hash
 from werkzeug.exceptions import HTTPException
 
-from b2_media import MediaAccessError, movie_prefix, rewrite_manifest
+from b2_media import MediaAccessError, movie_prefix, rewrite_manifest, media_kind, movie_title
 from b2_policy import UnsafeConfiguration
 from cache import TokenStore
 
@@ -140,8 +140,8 @@ def create_app(settings, repository, token_store=None, clock=time.time):
             return 'Video repository temporarily unavailable.', 503
         sections = {}
         for name in names:
-            section = name.split('/', 1)[0] if '/' in movie_prefix(name).rstrip('/') else 'Movies'
-            title = movie_prefix(name).rstrip('/').rsplit('/', 1)[-1][:-4]
+            section = name.split('/', 1)[0] if '/' in name.removesuffix('.hls/output.m3u8') else 'Movies'
+            title = movie_title(name)
             sections.setdefault(section, []).append({'name': name, 'display_name': title})
         tab = request.args.get('tab', session.get('active_tab'))
         if tab not in sections:
@@ -152,14 +152,16 @@ def create_app(settings, repository, token_store=None, clock=time.time):
     def valid_entry(name):
         if not isinstance(name, str) or name not in repository.catalog():
             abort(404)
-        movie_prefix(name)
+        media_kind(name)
         return name
 
     def player(entry, share=None):
-        title = movie_prefix(entry).rstrip('/').rsplit('/', 1)[-1][:-4]
-        url = url_for('playlist', name=entry, entry=entry, **({'share': share} if share else {}))
+        kind = media_kind(entry)
+        url = url_for('playlist' if kind == 'hls' else 'mp4', name=entry, entry=entry,
+                      **({'share': share} if share else {}))
         return render_template('shared.html' if share else 'detail.html', par_url=url,
-                               video_name=title, full_name=entry, encoding_type='application/x-mpegURL')
+                               video_name=movie_title(entry), full_name=entry,
+                               encoding_type='application/x-mpegURL' if kind == 'hls' else 'video/mp4')
 
     @app.route('/movie')
     @require_login
@@ -180,6 +182,27 @@ def create_app(settings, repository, token_store=None, clock=time.time):
         if not record:
             abort(403)
         return player(valid_entry(record['payload']['entry']), token)
+
+    @app.route('/mp4')
+    def mp4():
+        share = request.args.get('share')
+        entry = request.args.get('entry')
+        parent = store.get(share, 'share') if share is not None else login_record()
+        if not parent or (share is not None and parent['payload']['entry'] != entry):
+            abort(403)
+        valid_entry(entry)
+        if media_kind(entry) != 'mp4':
+            abort(403)
+        try:
+            media, grant = repository.grant(entry, parent['expires_at'])
+            live = store.get(share, 'share') if share is not None else login_record()
+            if not live:
+                abort(403)
+            return redirect(media.media_url(repository.bucket, entry, grant), code=302)
+        except (MediaAccessError, UnsafeConfiguration, HTTPException):
+            raise
+        except Exception:
+            return 'Video repository temporarily unavailable.', 503
 
     @app.route('/playlist')
     def playlist():

@@ -24,7 +24,7 @@ class PlaybackTests(unittest.TestCase):
         self.store = TokenStore(Path(self.directory.name) / 'tokens.sqlite', clock=lambda: self.now)
         self.entry = 'Example.hls/output.m3u8'
         self.other = 'Other.hls/output.m3u8'
-        api = Mock()
+        api = self.api = Mock()
         api.account_info.get_allowed.return_value = {'buckets': [{'id': 'bucket'}],
             'capabilities': sorted(REQUIRED), 'namePrefix': None}
         bucket = Mock()
@@ -55,6 +55,59 @@ class PlaybackTests(unittest.TestCase):
         with self.client.session_transaction() as s:
             s['login_token'] = token
         return token
+
+    def prepare_mp4(self):
+        entry = 'Year/Standalone é.mp4'
+        self.repo.catalog.return_value = (self.entry, entry)
+        self.api.session.list_file_names.return_value = {'files': [{'fileName': entry}]}
+        media = B2Media(self.api, 'bucket', self.repo.catalog(), lambda: self.now)
+        self.repo.grant.side_effect = lambda name, expires: (media, media.grant(name, expires))
+        return entry
+
+    def test_mp4_catalog_player_and_direct_b2_redirect(self):
+        entry = self.prepare_mp4()
+        self.session_login()
+        self.assertIn('Standalone é', self.client.get('/?tab=Year').text)
+        player = self.client.get('/movie', query_string={'name': entry})
+        self.assertEqual(player.status_code, 200)
+        self.assertIn('video/mp4', player.text)
+        self.assertIn('/mp4?', player.text)
+        response = self.client.get('/mp4', query_string={'entry': entry})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.location.startswith('https://example.com/'))
+        self.assertIn('Authorization=', response.location)
+        self.assertIn('no-store', response.headers['Cache-Control'])
+        self.repo.playlist.assert_not_called()
+
+    def test_mp4_anonymous_wrong_share_invalid_share_and_expiry_denied(self):
+        entry = self.prepare_mp4()
+        self.assertEqual(self.client.get('/mp4', query_string={'entry': entry}).status_code, 403)
+        self.repo.grant.assert_not_called()
+        self.session_login()
+        for token in ('invalid', self.store.issue('share', {'entry': self.entry}, 100)):
+            self.assertEqual(self.client.get('/mp4', query_string={'entry': entry, 'share': token}).status_code, 403)
+        share = self.store.issue('share', {'entry': entry}, 100)
+        self.assertIn('video/mp4', self.client.get('/shared', query_string={'auth_code': share}).text)
+        self.assertEqual(self.client.get('/mp4', query_string={'entry': entry, 'share': share}).status_code, 302)
+        self.now = 1100
+        self.assertEqual(self.client.get('/mp4', query_string={'entry': entry, 'share': share}).status_code, 403)
+
+    def test_mp4_scope_missing_catalog_upstream_failure_and_parent_revocation(self):
+        entry = self.prepare_mp4()
+        token = self.session_login()
+        self.assertEqual(self.client.get('/mp4', query_string={'entry': self.entry}).status_code, 403)
+        self.assertEqual(self.client.get('/mp4', query_string={'entry': 'Unknown.mp4'}).status_code, 404)
+        self.api.session.list_file_names.return_value = {'files': [{'fileName': entry}, {'fileName': entry + '.extra'}]}
+        self.assertEqual(self.client.get('/mp4', query_string={'entry': entry}).status_code, 403)
+        self.repo.grant.side_effect = RuntimeError('private upstream details')
+        response = self.client.get('/mp4', query_string={'entry': entry})
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn('private upstream details', response.text)
+        def revoke(name, expires):
+            self.store.delete(token)
+            return Mock(), Mock()
+        self.repo.grant.side_effect = revoke
+        self.assertEqual(self.client.get('/mp4', query_string={'entry': entry}).status_code, 403)
 
     def playlist_url(self, **kwargs):
         return '/playlist', {'entry': self.entry, 'name': self.entry, **kwargs}

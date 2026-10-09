@@ -3,7 +3,7 @@ from io import BytesIO
 import threading
 import time
 
-from b2_media import B2Media, MediaAccessError, movie_prefix
+from b2_media import B2Media, MediaAccessError, media_kind
 from b2_policy import validate_scope
 
 
@@ -33,8 +33,10 @@ class B2Repository:
                 name = item.file_name
                 if name.startswith('_migration-test/') and not self.discovery_prefix:
                     continue
-                if name.endswith('.hls/output.m3u8'):
-                    movie_prefix(name)
+                if name.endswith('.hls/output.m3u8') or name.lower().endswith('.mp4'):
+                    if any(p.lower().endswith('.hls') for p in name.split('/')[:-1]) and not name.endswith('.hls/output.m3u8'):
+                        continue
+                    media_kind(name)
                     names.append(name)
             self._catalog = tuple(sorted(names))
             self._catalog_at = self.clock()

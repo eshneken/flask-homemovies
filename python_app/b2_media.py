@@ -1,4 +1,4 @@
-"""Native B2 HLS primitives. Authorization is supplied by the application."""
+"""Native B2 media primitives. Authorization is supplied by the application."""
 
 import math
 import posixpath
@@ -20,6 +20,25 @@ def movie_prefix(entrypoint):
             or any(p in ('', '.', '..') for p in entrypoint.split('/'))):
         raise MediaAccessError('Invalid catalog HLS entrypoint.')
     return entrypoint.rsplit('/', 1)[0] + '/'
+
+
+def media_kind(entrypoint):
+    if (not isinstance(entrypoint, str) or entrypoint.startswith('/')
+            or any(ord(c) < 32 for c in entrypoint) or '\\' in entrypoint
+            or any(p in ('', '.', '..') for p in entrypoint.split('/'))):
+        raise MediaAccessError('Invalid movie entrypoint.')
+    if entrypoint.endswith('.hls/output.m3u8'):
+        movie_prefix(entrypoint)
+        return 'hls'
+    if (entrypoint.lower().endswith('.mp4')
+            and not any(p.lower().endswith('.hls') for p in entrypoint.split('/')[:-1])):
+        return 'mp4'
+    raise MediaAccessError('Unsupported movie entrypoint.')
+
+
+def movie_title(entrypoint):
+    return (movie_prefix(entrypoint).rstrip('/').rsplit('/', 1)[-1][:-4]
+            if media_kind(entrypoint) == 'hls' else entrypoint.rsplit('/', 1)[-1][:-4])
 
 
 def resolve_reference(playlist, reference, prefix):
@@ -74,6 +93,7 @@ class DownloadGrant:
     prefix: str
     expires_at: float
     token: str = field(repr=False)
+    exact_name: str | None = None
 
 
 class B2Media:
@@ -86,7 +106,8 @@ class B2Media:
     def grant(self, entrypoint, parent_expires_at, max_seconds=7200):
         if entrypoint not in self.catalog:
             raise MediaAccessError('Movie is not in the authorized catalog.')
-        prefix = movie_prefix(entrypoint)
+        exact_name = entrypoint if media_kind(entrypoint) == 'mp4' else None
+        prefix = exact_name or movie_prefix(entrypoint)
         # Reserve five seconds for request latency and clock skew. Never extend parent TTL.
         started = self.clock()
         seconds = math.floor(min(max_seconds, 604800, parent_expires_at - started - 5))
@@ -97,15 +118,28 @@ class B2Media:
         if len(buckets) != 1 or buckets[0].id_ != self.bucket_id or buckets[0].type_ != 'allPrivate':
             raise MediaAccessError('Private bucket could not be verified.')
         bucket = buckets[0]
+        if exact_name:
+            self.assert_exact_file(exact_name)
         token = bucket.get_download_authorization(prefix, seconds)
+        if exact_name:
+            self.assert_exact_file(exact_name)
         expires = started + seconds
         finished = self.clock()
         if finished >= expires or finished - started > 5:
             raise MediaAccessError('Download grant request exceeded its lifetime.')
-        return DownloadGrant(prefix, expires, token)
+        return DownloadGrant(prefix, expires, token, exact_name)
+
+    def assert_exact_file(self, name):
+        # Native B2 has prefix grants, not exact-file grants. Check every current
+        # matching object, including non-catalog files. Never cache this check.
+        listing = self.api.session.list_file_names(self.bucket_id, prefix=name, max_file_count=2)
+        if ([item['fileName'] for item in listing['files']] != [name]
+                or listing.get('nextFileName') is not None):
+            raise MediaAccessError('MP4 filename prefix is missing or ambiguous.')
 
     def media_url(self, bucket, name, grant):
-        if not name.startswith(grant.prefix) or self.clock() >= grant.expires_at:
+        if (not name.startswith(grant.prefix) or self.clock() >= grant.expires_at
+                or (grant.exact_name is not None and name != grant.exact_name)):
             raise MediaAccessError('Object is outside the active movie grant.')
         # Validate components before the SDK constructs a download-by-name URL.
         if any(p in ('', '.', '..') for p in name.split('/')) or '\\' in name:
