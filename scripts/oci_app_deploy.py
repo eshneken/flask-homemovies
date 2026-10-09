@@ -22,7 +22,7 @@ def deploy(env, compute, agent):
     image = validate_image(require(env, 'APP_IMAGE'), repository)
     model = oci.compute_instance_agent.models
     command = agent.create_instance_agent_command(model.CreateInstanceAgentCommandDetails(
-        compartment_id=compartment_id, execution_time_out_in_seconds=300,
+        compartment_id=compartment_id, execution_time_out_in_seconds=600,
         display_name='home-movies-deploy',
         target=model.InstanceAgentCommandTarget(instance_id=instance_id),
         content=model.InstanceAgentCommandContent(
@@ -30,7 +30,9 @@ def deploy(env, compute, agent):
                 text='#!/bin/sh\nset -eu\nsudo -n /usr/local/sbin/home-movies-deploy ' + image + '\n'),
             output=model.InstanceAgentCommandOutputViaTextDetails()))).data
     mask(command.id)
-    deadline = time.monotonic() + 480
+    # Agent delivery and result reporting each wait for a polling cycle, which
+    # can approach four minutes. Leave room for both and the initial image pull.
+    deadline = time.monotonic() + 900
     while time.monotonic() < deadline:
         try:
             execution = agent.get_instance_agent_command_execution(command.id, instance_id).data

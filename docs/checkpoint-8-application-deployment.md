@@ -1,6 +1,7 @@
 # Checkpoint 8 — private A1 VM and application deployment
 
-Status: application plan and ARM64 build are ready for live GitHub validation.
+Status: infrastructure applied; live B2 integration passed; corrected deployment
+workflow is being validated.
 All changes remain on the migration branch. Source infrastructure, its secrets,
 movie objects, DNS and the default branch are unchanged.
 
@@ -63,9 +64,32 @@ owner-only local files and GitHub environment variables. The mask list is refres
 before workflow runs so inputs are not exposed in public logs. B2 and login secrets
 are written directly to the destination Vault, without passing through GitHub.
 
-Initial local validation: 118 Python tests passed with 97.54% statement coverage;
-four application Terraform mock tests passed. Live plan, image publication, VM
-bootstrap, Run Command and maintenance access still require validation.
+Current local validation: 119 Python tests passed with 97.54% statement coverage;
+four application Terraform mock tests passed. The [application plan/apply](https://github.com/eshneken/flask-homemovies/actions/runs/37859649556)
+passed with 35 creates, one update, one import and no deletions. The VM is RUNNING,
+has no public IP and has IMDSv1 disabled. Cloud-init completed with zero errors,
+and managed Bastion SSH was validated. A narrow Bastion egress correction was
+[applied through GitHub](https://github.com/eshneken/flask-homemovies/actions/runs/37861102045).
+
+The native ARM64 build passed and the GHCR image was verified anonymously pullable.
+The first Run Command deployment completed in OCI with exit code 0, but GitHub’s
+eight-minute polling window expired before result reporting. The corrected job
+allows a 15-minute polling window and 20-minute job timeout; its regression test
+covers late delivery/reporting beyond eight minutes. The installed VM helper still
+bounds each host operation, and a remote command has a ten-minute execution limit.
+
+Existing login credentials were verified over an encrypted Bastion tunnel. Live
+synthetic playback passed from the destination VM: nested manifest rewriting,
+direct B2 Range downloads, production-origin CORS and guest sharing. Anonymous
+B2 access, neighboring movie-prefix access, invalid shares and untrusted Hosts
+were rejected. Production intentionally excludes `_migration-test/` objects; the
+test temporarily selected that exact synthetic movie through private Vault
+configuration. The production configuration was restored afterward. No files or
+prefixes were renamed and no real movies have been copied yet.
+
+Runtime credentials were written directly into Vault. A read of private application
+Terraform state confirmed the content remained the empty placeholder and did not
+contain the B2 key, password hash or session secret.
 
 Public DNS remains pointed at the old application until the later cutover
 checkpoint. We can test only public health and unauthenticated routing over HTTP using the

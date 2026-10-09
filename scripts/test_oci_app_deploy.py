@@ -30,7 +30,7 @@ class RunCommandTests(unittest.TestCase):
         submitted = agent.create_instance_agent_command.call_args.args[0]
         self.assertEqual(submitted.target.instance_id, 'test-instance')
         self.assertEqual(submitted.compartment_id, 'test-compartment')
-        self.assertEqual(submitted.execution_time_out_in_seconds, 300)
+        self.assertEqual(submitted.execution_time_out_in_seconds, 600)
         self.assertEqual(submitted.content.source.text, '#!/bin/sh\nset -eu\nsudo -n /usr/local/sbin/home-movies-deploy ' + ENV['APP_IMAGE'] + '\n')
         self.assertEqual(submitted.content.source.source_type, 'TEXT')
         agent.get_instance_agent_command_execution.assert_called_once_with('test-command', 'test-instance')
@@ -63,8 +63,18 @@ class RunCommandTests(unittest.TestCase):
         agent.get_instance_agent_command_execution.side_effect = oci.exceptions.ServiceError(403, 'NotAuthorized', {}, '<private-output>')
         with patch.object(release, 'mask'), self.assertRaises(oci.exceptions.ServiceError):
             release.deploy(ENV, compute, agent)
-        with patch.object(release, 'mask'), patch.object(release.time, 'monotonic', side_effect=[0, 481]), self.assertRaises(WifError):
+
+        with patch.object(release, 'mask'), patch.object(release.time, 'monotonic', side_effect=[0, 901]), self.assertRaises(WifError):
             release.deploy(ENV, compute, agent)
+
+    def test_initial_pull_and_late_result_can_exceed_eight_minutes(self):
+        compute, agent = self.clients()
+        agent.get_instance_agent_command_execution.side_effect = [
+            NS(data=NS(lifecycle_state=state)) for state in ('ACCEPTED', 'IN_PROGRESS', 'SUCCEEDED')]
+        with patch.object(release, 'mask'), patch.object(release.time, 'sleep'), \
+                patch.object(release.time, 'monotonic', side_effect=[0, 10, 500, 850]):
+            release.deploy(ENV, compute, agent)
+        self.assertEqual(agent.get_instance_agent_command_execution.call_count, 3)
 
     def test_main_requires_production_branch_and_sanitizes_sdk_failures(self):
         env = dict(ENV, GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='github-hosted',

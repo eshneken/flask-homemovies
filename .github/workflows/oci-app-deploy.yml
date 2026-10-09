@@ -57,7 +57,7 @@ jobs:
     needs: build
     if: vars.ENABLE_HOME_MOVIES_APP_DEPLOY == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     environment: homemovies-production
     permissions:
       contents: read
