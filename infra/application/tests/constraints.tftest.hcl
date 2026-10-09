@@ -6,18 +6,18 @@ override_resource {
 }
 variables {
   deployment_group_ocid = "test-deploy-group"
-  tenancy_ocid        = "test-tenancy"
-  compartment_ocid    = "test-compartment"
-  compartment_name    = "test-compartment-name"
-  region              = "us-ashburn-1"
-  availability_domain = "test-ad"
-  image_ocid          = "test-image"
-  vault_ocid          = "test-vault"
-  vault_key_ocid      = "test-key"
-  hostname            = "movies.example.com"
-  acme_email          = "admin@example.com"
-  bastion_client_cidr = "192.0.2.1/32"
-  image_repository    = "ghcr.io/example/home-movies"
+  tenancy_ocid          = "test-tenancy"
+  compartment_ocid      = "test-compartment"
+  compartment_name      = "test-compartment-name"
+  region                = "us-ashburn-1"
+  availability_domain   = "test-ad"
+  image_ocid            = "test-image"
+  vault_ocid            = "test-vault"
+  vault_key_ocid        = "test-key"
+  hostname              = "movies.example.com"
+  acme_email            = "admin@example.com"
+  bastion_client_cidr   = "192.0.2.1/32"
+  image_repository      = "ghcr.io/example/home-movies"
 }
 override_data {
   target = data.oci_identity_compartment.application
@@ -26,7 +26,7 @@ override_data {
 run "free_budget_and_private_host" {
   command = plan
   assert {
-    condition = contains(oci_identity_policy.runtime.statements, "Allow group id test-deploy-group to read instance-agent-command-execution-family in compartment id test-compartment")
+    condition     = contains(oci_identity_policy.runtime.statements, "Allow group id test-deploy-group to read instance-agent-command-execution-family in compartment id test-compartment")
     error_message = "Deployment may read execution results only in its application compartment."
   }
   assert {
