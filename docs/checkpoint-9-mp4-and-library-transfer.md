@@ -150,3 +150,9 @@ OCI's provider would replace the VM when `user_data` changes. The VM's existing
 post-launch `metadata.user_data` changes; future VM creation uses the latest
 template, while existing host changes require maintenance. No VM replacement was
 performed.
+
+Permanent [local development](local-development.md) and [GitHub Actions setup](github-actions.md)
+guides replace README links to synthetic migration instructions. Final cleanup
+must preserve both. Retain the generic IAM/foundation bootstrap capability needed
+for a new tenancy; retire the extra one-off federation patch/plan/apply workflow
+wrappers rather than deleting helpers still imported by normal infrastructure.

@@ -239,15 +239,20 @@ behavior and infrastructure. Coverage must exceed 90 percent. ARM64 release jobs
 also test before publishing. Live service tests are separate and use private
 ignored configuration; do not add real credentials to CI tests.
 
-For a local real-B2 synthetic demo, prepare `.local/b2-preflight.json` and the
-restricted `.local/b2-upload-test.json` as described in [B2 setup](docs/checkpoint-1-b2-setup.md).
-Then follow [the browser checkpoint](docs/checkpoint-3-flask-playback.md).
-`HM_CONFIG_FILE` selects an ignored owner-only local JSON configuration. Production
-uses `HM_CONFIG_SECRET_OCID` and the VM's instance principal to fetch its Vault
-secret. The application factory is `app:create_runtime_app()`; the old OCI bucket,
-Redis and command-line username/password flags are retired.
+To run the app on your laptop, follow [local development](docs/local-development.md):
+install dependencies, create an ignored owner-only configuration with a private B2
+read-only key and local login, then run Flask or Gunicorn on `127.0.0.1:5055`.
+The guide includes the local B2 CORS rule, optional folder filtering, browser checks,
+coverage reports and cleanup. SQLite runs inside Python; OCI and Caddy are not
+required locally. Production uses `HM_CONFIG_SECRET_OCID` to load settings from
+OCI Vault using the VM's instance principal.
 
-## Provisioning and releases
+## GitHub Actions setup and releases
+
+[GitHub Actions setup](docs/github-actions.md) describes the permanent workflows,
+environment variables/secrets, workload identity federation, Terraform state,
+release triggers and how to inspect failures. CI needs no cloud credentials;
+infrastructure and deployment use separate OCI identities.
 
 [Automation and cutover](docs/automation-and-cutover-plan.md) lists the implemented
 workflows, environment configuration and remaining acceptance steps. Ordinary
