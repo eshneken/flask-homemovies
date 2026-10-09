@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import oci_application_infra as infrastructure
 from oci_wif import WifError
 
-ENV = dict(OCI_TENANCY_OCID='test-tenancy', OCI_COMPARTMENT_OCID='test-compartment',
+ENV = dict(OCI_DEPLOYMENT_GROUP_OCID='test-deploy-group', OCI_TENANCY_OCID='test-tenancy', OCI_COMPARTMENT_OCID='test-compartment',
            OCI_COMPARTMENT_NAME='test-home', OCI_REGION='us-ashburn-1',
            OCI_AVAILABILITY_DOMAIN='test-ad', OCI_IMAGE_OCID='test-image',
            APP_HOSTNAME='movies.example.com', ACME_EMAIL='admin@example.com',

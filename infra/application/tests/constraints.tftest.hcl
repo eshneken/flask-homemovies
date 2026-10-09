@@ -5,6 +5,7 @@ override_resource {
   override_during = plan
 }
 variables {
+  deployment_group_ocid = "test-deploy-group"
   tenancy_ocid        = "test-tenancy"
   compartment_ocid    = "test-compartment"
   compartment_name    = "test-compartment-name"
@@ -24,6 +25,10 @@ override_data {
 }
 run "free_budget_and_private_host" {
   command = plan
+  assert {
+    condition = contains(oci_identity_policy.runtime.statements, "Allow group id test-deploy-group to read instance-agent-command-execution-family in compartment id test-compartment")
+    error_message = "Deployment may read execution results only in its application compartment."
+  }
   assert {
     condition = (oci_core_instance.web.shape == "VM.Standard.A1.Flex" &&
       oci_core_instance.web.shape_config[0].ocpus == 1 &&

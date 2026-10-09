@@ -20,7 +20,7 @@ reviewer gate. Temporary administrator bootstrap triggers are disabled.
 
 Configuration stays in ignored local files and GitHub environment variables:
 `OCI_TENANCY_OCID`, `OCI_COMPARTMENT_OCID`, `OCI_COMPARTMENT_NAME`, `OCI_REGION`,
-`OCI_AVAILABILITY_DOMAIN`, `OCI_IMAGE_OCID`, `OCI_BASTION_CLIENT_CIDR`,
+`OCI_DEPLOYMENT_GROUP_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_IMAGE_OCID`, `OCI_BASTION_CLIENT_CIDR`,
 `OCI_STATE_BUCKET_NAME`, `APP_HOSTNAME`, `ACME_EMAIL`, and (for releases)
 `OCI_INSTANCE_OCID`. Private bootstrap outputs identify the Vault/key/runtime group.
 OAuth client secrets are environment secrets. B2/login settings never enter Actions.

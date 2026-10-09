@@ -90,3 +90,8 @@ variable "image_repository" {
     error_message = "Supply only the project's GHCR image repository, without tag or digest."
   }
 }
+
+variable "deployment_group_ocid" {
+  type      = string
+  sensitive = true
+}

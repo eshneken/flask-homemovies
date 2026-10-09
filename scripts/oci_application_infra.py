@@ -13,6 +13,7 @@ from oci_infra_bootstrap import bucket_exists, read_metadata, summarize, terrafo
 from oci_wif import WifError, hosted_runner, mask, private_write, require
 
 INPUTS = {
+    'deployment_group_ocid': 'OCI_DEPLOYMENT_GROUP_OCID',
     'tenancy_ocid': 'OCI_TENANCY_OCID', 'compartment_ocid': 'OCI_COMPARTMENT_OCID',
     'compartment_name': 'OCI_COMPARTMENT_NAME', 'region': 'OCI_REGION',
     'availability_domain': 'OCI_AVAILABILITY_DOMAIN', 'image_ocid': 'OCI_IMAGE_OCID',

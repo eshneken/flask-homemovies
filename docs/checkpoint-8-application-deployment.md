@@ -72,11 +72,14 @@ and managed Bastion SSH was validated. A narrow Bastion egress correction was
 [applied through GitHub](https://github.com/eshneken/flask-homemovies/actions/runs/37861102045).
 
 The native ARM64 build passed and the GHCR image was verified anonymously pullable.
-The first Run Command deployment completed in OCI with exit code 0, but GitHub’s
-eight-minute polling window expired before result reporting. The corrected job
-allows a 15-minute polling window and 20-minute job timeout; its regression test
-covers late delivery/reporting beyond eight minutes. The installed VM helper still
-bounds each host operation, and a remote command has a ten-minute execution limit.
+Run Command deployment completed in OCI with exit code 0, but the GitHub service
+identity received 404 responses while reading its execution result. Extending the
+polling window did not resolve that denial. The application policy now explicitly
+grants the deployment group read access to command executions in this compartment;
+it grants no execution-update permission. This correction is being validated.
+The job allows a 15-minute polling window and a 20-minute job timeout for normal
+agent delivery/reporting. The installed helper bounds each host operation and a
+remote command has a ten-minute execution limit.
 
 Existing login credentials were verified over an encrypted Bastion tunnel. Live
 synthetic playback passed from the destination VM: nested manifest rewriting,
@@ -104,3 +107,12 @@ runbook are separate checkpoints before merging the branch.
 References: [GitHub native ARM64 runners](https://github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/),
 [GitHub Container registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry),
 [OCI Run Command](https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/runningcommands.htm).
+
+## Next checkpoint: library compatibility and transfer
+
+Read-only source inventory found 12,061 objects totaling 217,956,271,191 bytes
+(about 218 GB), including seven HLS master playlists and 30 standalone MP4 files.
+The current migrated catalog supports HLS; MP4 playback must be implemented and
+validated before library migration or cutover. Preserve every filename and prefix.
+No source movie objects have been copied or modified. The B2 transfer and manual
+upload runbook remain pending, along with the full documentation migration.
