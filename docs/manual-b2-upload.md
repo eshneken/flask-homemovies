@@ -19,7 +19,12 @@ Years in Review/
 
 Keep the existing `output.m3u8` naming convention and relative segment references. Encode locally using the existing FFmpeg procedure if needed. Put only that movie's playback files in this folder; keep originals and unrelated files elsewhere.
 
-Use the dedicated upload application key for the private movie bucket, not the Flask runtime key or account master key. It needs `listBuckets` for CLI authorization, `listFiles` and `writeFiles` for uploads, and `readFiles` for verification downloads. Scope it to the movie bucket; it needs no delete, public-sharing, bucket-administration, or key-management permission. Keep it in your password manager or retrieve it from its designated OCI Vault secret when needed. [CLI authorization requirements](https://b2-command-line-tool.readthedocs.io/en/v4.4.0/subcommands/account_authorize.html)
+Use the dedicated upload application key for the private movie bucket, not the Flask runtime key or account master key. It needs `listBuckets` for CLI authorization, `listFiles` and `writeFiles` for uploads, and `readFiles` for verification downloads. Scope it to the movie bucket; it needs no delete, public-sharing, bucket-administration, or key-management permission. Keep it in your password manager, or in a separate operator-only OCI Vault secret if you configure one. It is not part of the Flask runtime secret. [CLI authorization requirements](https://b2-command-line-tool.readthedocs.io/en/v4.4.0/subcommands/account_authorize.html)
+
+A bucket-restricted read/write key used to initially populate the library can
+be retained as the manual upload key. An upload key restricted to a test-only
+filename prefix cannot upload normal movie folders. Keep the upload key separate
+from the read-only playback key and use it only on the operator's computer.
 
 Install the CLI once, in an environment outside the movie folder:
 
