@@ -136,8 +136,10 @@ SQLite directory ownership, and whether the configured image is cached. Keep raw
 settings and errors private. An empty `image.env` is not repaired by reboot;
 complete an image deployment through GitHub instead. Do not rerun cloud-init to
 repair a deployed VM: it is an initial-provisioning tool, not a host reconciler.
-Template changes apply to newly provisioned hosts; existing hosts need a reviewed
-maintenance change as well.
+Template changes apply to newly provisioned hosts; Terraform ignores subsequent
+`user_data` changes because this provider would otherwise replace the VM. Existing
+hosts need a reviewed maintenance change as well. The VM is also protected by
+`prevent_destroy`.
 
 A controlled reboot briefly interrupts the site. Before testing, confirm both
 services are enabled, there is a deployed image, no deployment is running and the

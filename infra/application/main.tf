@@ -45,5 +45,8 @@ resource "oci_core_instance" "web" {
   }
   lifecycle {
     prevent_destroy = true
+    # Cloud-init is launch-only. Template edits must not replace a running host;
+    # apply equivalent changes to existing hosts through reviewed maintenance.
+    ignore_changes = [metadata["user_data"]]
   }
 }

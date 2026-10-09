@@ -143,3 +143,10 @@ After the real library is verified and accepted, before merging the branch:
 
 This is the final cleanup step, not an additional architecture or monitoring
 project. Source application resources and default-branch history remain untouched.
+
+The infrastructure run initially rejected a cloud-init template change because
+OCI's provider would replace the VM when `user_data` changes. The VM's existing
+`prevent_destroy` protection blocked that action. Terraform now explicitly ignores
+post-launch `metadata.user_data` changes; future VM creation uses the latest
+template, while existing host changes require maintenance. No VM replacement was
+performed.
