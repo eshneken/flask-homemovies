@@ -1,7 +1,7 @@
 # Checkpoint 9 — MP4 compatibility and library transfer
 
-Status: MP4 implementation passes local tests; public deployment and synthetic
-validation are in progress. The library copy has not started.
+Status: MP4 deployment and public synthetic checks passed. Source-only migration
+helper preparation is in progress; the full library copy has not started.
 
 ## MP4 playback
 
@@ -33,10 +33,15 @@ References: [B2 native download authorization](https://www.backblaze.com/apidocs
 
 ## Validation and next steps
 
-Local suite: 126 tests passed with 97.62% statement coverage. Tests cover MP4
+Local suite: 129 tests passed with 97.63% statement coverage. Tests cover MP4
 classification, Unicode names, HLS-fragment exclusion, direct redirects, sharing,
 expiry, anonymous denial, cross-movie denial, collision detection, collisions
 appearing during grant issuance, upstream errors and parent revocation during I/O.
+The [ARM64 release and VM deployment](https://github.com/eshneken/flask-homemovies/actions/runs/37868794634)
+passed. Public HTTPS probes passed HLS and MP4 playback paths, direct B2 Range
+downloads, sharing and cross-movie/anonymous denials. A live synthetic MP4
+filename-prefix collision was rejected and then deleted. A short-lived native B2
+token downloaded successfully before expiry and was denied afterward.
 A six-second fast-start H.264/AAC synthetic MP4 uses only the existing restricted
 `_migration-test/` key. No real movie objects have been uploaded.
 
@@ -52,3 +57,30 @@ The source bucket and running source application remain intact.
 
 Remove the synthetic-only discovery setting only after verification. Complete
 the manual B2 upload runbook and full documentation migration before branch merge.
+
+## Source helper and exact inventory
+
+The temporary copy helper runs in the source tenancy, where the owner explicitly
+allows helper resources. A local Terraform module and private state under
+`.local/source-helper/` create an isolated compartment, network, public helper
+VM, and a dynamic group/policy with read-only access to the source movie bucket.
+There are nine new resources and no existing-resource updates or deletions.
+The helper uses 1 E4 OCPU, 8 GB RAM and a 50 GB boot volume; IMDSv1 is disabled.
+SSH is restricted to the operator's IPv4 /32. This temporary source setup uses
+the existing local source profile, while destination infrastructure and releases
+continue through GitHub WIF. Source API private keys are not copied to the helper.
+Its rclone OCI backend uses instance-principal authentication; its B2 key is in
+a private file transferred over SSH, outside Terraform and GitHub.
+
+The native OCI rclone file listing preserves the 12,056 file object names. Five
+additional source objects are zero-byte folder markers ending in `/`; rclone
+omits those as directory entries, so they must be copied separately through the
+native APIs. Verify all 12,061 object names and sizes including those markers.
+Use a streamed full-content check for the files, not a size-only acceptance.
+Retain private results, remove the temporary helper resources after completion,
+and revoke its temporary B2 key. The existing source objects remain intact.
+
+The manual upload runbook now includes `scripts/check_mp4_prefixes.py`, which
+checks the entire existing namespace together with candidate upload names before
+any upload. It rejects non-catalog sidecars and directory keys extending an MP4
+filename, without printing private object names.

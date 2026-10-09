@@ -2,7 +2,7 @@
 
 Use this procedure from your own computer when adding movies once or twice a year. It uses Backblaze's native CLI, without S3, GitHub Actions, or an application deployment. Preserve filenames, capitalization, spaces, and the complete destination prefix exactly. No UUID directories, release directories, or renamed movie files are introduced.
 
-The commands below use the documented B2 CLI 4.x syntax. The B2 destination bucket and upload key will be provisioned during migration; they do not exist merely because this runbook has been written. Automatic discovery described in step 6 is a requirement for the new application, not functionality implemented in the current OCI application.
+The commands below use the documented B2 CLI 4.x syntax. The private B2 bucket and migrated application's automatic discovery are configured. Use a dedicated bucket-restricted upload key for this procedure. During the synthetic pilot, real-library discovery remains disabled until migration verification is complete.
 
 ## 1. Prepare the local folder and upload key
 
@@ -60,7 +60,31 @@ test -f "$MOVIE_DIR/output.m3u8"
 
 If that command fails, correct the source path. Confirm that every file referenced by the playlist is present locally. If replacing an existing movie, arrange a quiet period with viewers and complete the upload before viewing resumes; replacement uses the same keys and prefix.
 
-## 3. Preview and upload the movie files
+## 3. Check filename prefixes, then preview and upload
+
+Before every upload, check the entire destination inventory plus the candidate
+files. This prevents a new file or sidecar from extending an existing MP4 name;
+B2's native download grants are prefix-based. Keep the inventory private.
+From the repository directory, with the test dependencies installed:
+
+```bash
+mkdir -p .local
+umask 077
+b2 ls --recursive --json "b2://$MOVIE_BUCKET" > .local/upload-inventory.json
+python scripts/check_mp4_prefixes.py \
+  --existing .local/upload-inventory.json \
+  --source "$MOVIE_DIR" --prefix "$MOVIE_PREFIX"
+```
+
+Proceed only when this prints PASS. Do not create objects such as
+`Birthday.mp4.notes` or `Birthday.mp4/anything` while `Birthday.mp4` exists.
+Keep sidecars under a separate name. The application refuses to issue new grants
+when a collision exists, but an already-issued B2 token remains valid until expiry.
+Do not rename existing movies to fix a collision; resolve the conflicting new
+candidate instead. Serialize uploads; do not run concurrent uploads from another
+computer between the inventory check and completion.
+
+## Preview and upload the movie files
 
 Upload the movie's dependencies before its main playlist. The exclusion also skips macOS `.DS_Store` files:
 
@@ -114,7 +138,7 @@ MIME corrections for child playlists use `application/vnd.apple.mpegurl`. Keep t
 
 ## 6. Check the movie in the application
 
-The new application must discover movies from B2 and cache that listing in memory for at most five minutes, refreshing on a subsequent library request. A completed `.hls/output.m3u8` identifies an HLS movie. Existing movie names/prefixes remain the trusted catalog lookup keys. There is no separately published catalog file or CI catalog job.
+The migrated application discovers movies from B2 and caches that listing in memory for at most five minutes, refreshing on a subsequent library request. A completed `.hls/output.m3u8` identifies an HLS movie. Existing movie names/prefixes remain the trusted catalog lookup keys. There is no separately published catalog file or CI catalog job.
 
 After upload, wait up to five minutes and reload the library. Open the movie, play it, and seek ahead. Confirm its navigation section and title are correct. No application rebuild, deployment, SQLite update, or manual cache-editing command is needed.
 
@@ -133,7 +157,12 @@ Keep your local originals. Replacing files at the same keys creates older B2 ver
 
 ## Standalone files
 
-For a standalone file already confirmed compatible with the family devices and native B2 delivery, upload directly to its exact existing object key:
+For a standalone MP4 compatible with family browsers, preserve its exact key.
+Refresh the private inventory as in step 3 and run the same prefix checker with
+`--source '/absolute/path/to/Birthday.mp4' --prefix '2022/Birthday.mp4'` before
+uploading. A file source maps to that exact key; do not append a trailing slash.
+Then upload:
+
 
 ```bash
 b2 file upload --content-type video/mp4 \
