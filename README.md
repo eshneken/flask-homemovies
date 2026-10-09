@@ -177,7 +177,7 @@ and [operations](docs/operators-guide.md).
 
 The migration remains on `codex/oci-a1-b2-migration`; the existing source app and
 default branch remain intact until final acceptance. Public DNS now reaches the
-new VM for the synthetic pilot. Real-library copy/verification is in progress;
+new VM with the verified real library. Public checks passed for all 37 movies;
 see [Checkpoint 9](docs/checkpoint-9-mp4-and-library-transfer.md).
 
 ## Movie layout and uploads
@@ -254,11 +254,10 @@ environment variables/secrets, workload identity federation, Terraform state,
 release triggers and how to inspect failures. CI needs no cloud credentials;
 infrastructure and deployment use separate OCI identities.
 
-[Automation and cutover](docs/automation-and-cutover-plan.md) lists the implemented
-workflows, environment configuration and remaining acceptance steps. Ordinary
-infrastructure/release jobs use `homemovies-infrastructure` and
-`homemovies-production`; reviewer approval gates are disabled by owner preference.
-Temporary administrator bootstrap workflows remain disabled after setup.
+Infrastructure/release jobs use `homemovies-infrastructure` and
+`homemovies-production`. Temporary administrator bootstrap workflows remain
+disabled after setup. Follow the permanent setup guide above when configuring
+a new tenancy or repository.
 
 Builds publish software-only ARM64 images to the public GHCR package. An immutable
 digest from this project's repository is the only deployment input. Credentials,

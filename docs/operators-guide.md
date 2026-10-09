@@ -101,10 +101,15 @@ sudo podman images --digests
 sudo podman image prune
 ```
 
-The default prune removes dangling images and asks for confirmation. Do not use
-`podman system prune --all` as routine maintenance: it removes cached rollback
-images. The running digest remains in `/etc/home-movies/image.env`; a cached image
-is required for boot because the service uses `--pull=never`.
+The default prune removes dangling images and asks for confirmation. Previous
+digest-only releases can be dangling too: tag any rollback image you want to
+retain before using prune, for example `sudo podman tag '<desired digest>'
+localhost/home-movies:rollback`. Keep the application running during image cleanup
+so its current image remains in use. Do not prune while the service is stopped.
+Do not use `podman system prune --all` as routine maintenance: it removes unused
+tagged rollback images as well. The running digest remains in
+`/etc/home-movies/image.env`; a cached image is required for boot because the
+service uses `--pull=never`. Never delete `/var/lib/containers/storage` manually.
 
 ## Restart and recovery
 

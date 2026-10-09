@@ -1,8 +1,9 @@
 # Checkpoint 9 — MP4 compatibility and library transfer
 
-Status: MP4 deployment and public synthetic checks passed. The source helper is
-running the library copy, followed automatically by full streamed verification.
-The destination application remains synthetic-only until verification completes.
+Status: the full library is copied, content-verified and enabled on the destination.
+Public checks passed for all 37 original movies. All nine temporary source helper
+resources were deleted. Owner real-device acceptance and final repository cleanup
+remain before merge. The source application and default branch remain unchanged.
 
 ## MP4 playback
 
@@ -44,20 +45,29 @@ downloads, sharing and cross-movie/anonymous denials. A live synthetic MP4
 filename-prefix collision was rejected and then deleted. A short-lived native B2
 token downloaded successfully before expiry and was denied afterward.
 A six-second fast-start H.264/AAC synthetic MP4 uses only the existing restricted
-`_migration-test/` key. No real movie objects have been uploaded.
+`_migration-test/` key. The real library has since been copied and verified.
 
-Before copying the 12,061 source objects (217,956,271,191 bytes), confirm paid B2
-capacity and a temporary bucket-restricted migration key in ignored local
-configuration. Use native OCI Object Storage and native B2 rclone backends; no
-S3 configuration. Copy, never sync or move, preserving every name and prefix.
-Keep credentials out of Terraform, GitHub, command arguments and public logs.
-Store detailed transfer logs privately. Verify object names/counts/sizes and
-content before enabling the real catalog; native OCI MD5 and B2 SHA-1 are not
-directly comparable. Do not treat matching sizes alone as content verification.
-The source bucket and running source application remain intact.
+The copy preserved all 12,061 objects (217,956,271,191 bytes), including five
+zero-byte folder markers. Native OCI and native B2 rclone backends were used;
+no source objects were deleted or changed. Full streamed content comparison
+passed for all 12,056 regular files with zero differences and no unexpected
+errors. Five known rclone directory-marker listing messages were classified
+separately; native B2 checks verified all five marker names and zero-byte sizes.
+A fresh inventory matched every source name and size and confirmed the bucket
+remains private. Detailed names, logs and credentials remain in ignored files.
 
-Remove the synthetic-only discovery setting only after verification. Complete
-the manual B2 upload runbook and full documentation migration before branch merge.
+The destination Vault configuration now enables the full catalog while preserving
+existing authentication and B2 credentials. The [release and VM deployment](https://github.com/eshneken/flask-homemovies/actions/runs/37869706498)
+passed. Public HTTPS checks passed every original movie page, seven HLS and 30
+MP4 direct B2 Range reads, production CORS and unauthenticated B2 denial.
+These checks verify integration and bytes; the owner must still confirm actual
+playback, seeking and incognito sharing on usual devices.
+
+All nine temporary helper resources were destroyed successfully; the local
+Terraform state is empty. The original source application and movie bucket remain
+intact. Revoke only the temporary full-bucket B2 migration key after acceptance;
+keep the restricted runtime playback key. Complete final documentation/script
+cleanup after owner acceptance, before merging the branch.
 
 ## Source helper and exact inventory
 
