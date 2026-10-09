@@ -1,140 +1,68 @@
-**Home Movies automation and cutover design — October 7, 2026**
+# Automation and cutover
 
-This extends the [OCI/B2 architecture proposal](oci-migration-proposal.md). The target remains one A1 VM with a 50GB boot disk, Caddy, Gunicorn/Flask, a disposable SQLite token cache replacing Redis, a free NLB, OCI Vault secrets, and a private B2 library. Flask rewrites all HLS playlists; video downloads go directly to B2. Terraform and GitHub Actions own provisioning and delivery. These are implementation specifications, not existing executable workflows or a deployed environment.
+Destination infrastructure and application releases run from GitHub Actions with
+permanent OCI workload identity federation. Trusted repository branch pushes are
+eligible, including future application pushes; pull requests and tags cannot deploy.
+No GitHub reviewer gates are configured, by owner preference. The identity domain's
+existing GitHub issuer trust is extended additively; grocery mappings remain intact.
 
-**Initial scope:** gap-review items 4–7 are deferred at the user's request. Implement functional provisioning/deployment, native B2 playback, token expiry/cleanup, exact-path media migration, and the manual upload runbook. Basic GoDaddy routing and Caddy HTTPS stay in the infrastructure/deployment jobs. No separate cutover workflow, automated rollback, monitoring/alert system, recovery drills, credential-rotation automation, or host secret-fetch service is required. Existing IMDSv2-only, branch-isolation, and shared-resource constraints remain.
+## Implemented automation
 
-**Pre-existing compartment and public configuration:** the account owner creates the destination compartment before bootstrap. Consume `OCI_COMPARTMENT_NAME` and `OCI_COMPARTMENT_OCID` from GitHub Actions environment variables; map them to `TF_VAR_compartment_name` and `TF_VAR_compartment_ocid`. The OCID is required, with no hardcoded/default target or automatic compartment creation. Jobs declare their GitHub deployment environment. Terraform references this compartment and never manages its lifetime. Other actual tenancy/network/bucket/hostname/contact values also stay in environment configuration; credentials stay in secrets/Vault. Do not publish private identifiers, plans/state, media inventories, or tokens through Actions logs/artifacts. See [public-repository configuration](public-repository-configuration.md).
+| Workflow | Purpose | Environment |
+|---|---|---|
+| `public-files.yml` | Credential-free tests, coverage gate, privacy check, Terraform mock tests on every push/PR | None |
+| `oci-wif-verify.yml` | Verify permanent OCI federation | Production and infrastructure |
+| `oci-application-infra.yml` | Terraform application plan/apply with private native OCI state | `homemovies-infrastructure` |
+| `oci-app-deploy.yml` | Native ARM64 tests/build, GHCR digest release, Run Command deployment and local VM health check | `homemovies-production` |
+| `oci-federation-bootstrap-plan.yml`, `oci-federation-bootstrap-apply.yml`, `oci-infra-bootstrap.yml` | Initial identity/IAM/state/Vault bootstrap; disabled after setup | `homemovies-bootstrap` |
 
-**Dedicated destination network.** Use a new VCN with a private application subnet, a separate public NLB subnet, an Internet gateway, a managed NAT gateway, separate route tables, an empty security list and explicit network security groups owned by Home Movies in the supplied application compartment. The VM has no public IP; outbound application traffic uses NAT. The NLB public subnet uses the Internet gateway. Add OCI Bastion managed SSH for operator maintenance, with access to VM port 22 limited to its private endpoint and session keys supplied on demand. Do not import, reference or change grocery networking. The existing compartment is referenced, never created or managed. Regional usage was checked privately using the destination profile; resource identifiers remain in ignored local configuration.
+Enable flags and operation selectors are repository variables documented in the
+checkpoint files. Infrastructure operation `plan` is read-only; `apply` uses its
+saved plan. Existing workflows serialize infrastructure and release jobs. Manual
+workflow dispatch becomes available when these workflows reach the default branch;
+branch push triggers exercise the implementation beforehand.
 
-**Reference implementation examined.** The grocery-list project's `setup-oci-wif` composite action generates a per-job RSA key, requests a GitHub OIDC JWT, exchanges it for an OCI UPST, writes a temporary OCI profile, and exports `SecurityToken` authentication. Its infrastructure workflow already creates a state bucket with a local Terraform backend on first use, then migrates state to the native OCI backend. The bootstrap also creates a standard Vault and software key. Application delivery publishes immutable ARM64-capable GHCR images. Reuse these patterns, not the grocery project's OKE, PostgreSQL, OCI DNS, resource names, deployment identity, or state keys. [WIF action](https://github.com/eshneken/family-grocery-list/blob/master/.github/actions/setup-oci-wif/action.yml), [Infrastructure workflow](https://github.com/eshneken/family-grocery-list/blob/master/.github/workflows/oci-infrastructure.yml), [Application workflow](https://github.com/eshneken/family-grocery-list/blob/master/.github/workflows/application.yml)
+## Infrastructure ownership
 
-The grocery WIF action requires a non-admin identity-domain OAuth client secret. It removes persistent OCI API signing keys from ordinary CI, but is not entirely credential-free. Store that exchange credential in protected GitHub environment secrets: fetching it from OCI Vault before authenticating would create a circular dependency. Application secrets stay in OCI Vault. Adapt the helper to mask generated tokens, clean temporary credentials after every job, verify TLS, and avoid passing secret values in process arguments. OCI supports JWT-to-UPST exchange and Terraform security-token authentication. [OCI UPST exchange](https://docs.oracle.com/en-us/iaas/Content/Identity/api-getstarted/json_web_token_exchange.htm), [Terraform authentication](https://docs.oracle.com/en-us/iaas/Content/dev/terraform/configuring.htm)
+`infra/foundation/` owns the private versioned state bucket, standard Vault and
+software key. `infra/iam-bootstrap/` owns automation permissions and initially seeds
+the runtime dynamic group. `infra/application/` imports that group, narrows it to
+one VM and owns networking, A1 VM, NLB, Bastion and runtime secret metadata. Real
+secret content goes directly to Vault; Terraform retains an empty JSON placeholder
+and ignores content changes. Bootstrap and application state are separate private
+objects. Plans/state/identifiers are never public CI artifacts.
 
-**Federation and the first bootstrap.** Use dedicated Home Movies federation mappings and IAM permissions. Separate foundation administration, infrastructure apply, application deployment, DNS cutover, and source migration permissions; at minimum, the app-deploy identity cannot edit federation or the other application's infrastructure. The foundation identity is used only when changing the foundation, not on every image release. Deployment authority effectively grants control over this application's host and its runtime credentials; do not describe it as harmless read-only access.
+## Media migration and current pilot
 
-Trust GitHub's issuer and signing keys, the configured audience, and the exact Home Movies repository/environment subject. Inspect the actual subject format before configuring trust; GitHub documents different defaults for newly created repositories. WIF is permanent and supports pushes from every branch of this repository. Do not restrict the staging federation environment to a single branch. Check that the JWT ref matches the triggering branch and reject PR/tag contexts in the current helper. Keep infrastructure and application permissions separate; deployment targets and production release triggers are configured independently from federation. Where the selected OCI trust flow supports additional validations, constrain immutable repository identity and workflow claims too. Enforce conditions at the trust/environment boundary, not only in a shell script. Fork pull requests receive no deployment credentials. Keep token permissions job-specific and pin third-party actions to reviewed commit SHAs. [GitHub OIDC claims](https://docs.github.com/en/actions/concepts/security/openid-connect)
+Public DNS has been switched by the owner to the NLB for synthetic browser testing.
+Caddy has a trusted Let's Encrypt certificate. HLS and MP4 public-path tests passed;
+only the synthetic collection is selected through private runtime configuration.
+The real library copy and verification are in progress; [Checkpoint 9](checkpoint-9-mp4-and-library-transfer.md)
+records results and the temporary source helper.
 
-A completely empty tenancy cannot authenticate an Actions job through a trust that the job has not yet created. If an appropriately authorized trust already exists in the shared tenancy, use it for the initial foundation apply. Otherwise provide a one-time, short-lived administrator authentication bundle to a protected bootstrap job, including the identity-domain authority needed to create the trust. That job performs the provisioning; there are no manual VM, networking, bucket, or policy creation steps. Retire the seed credentials once the dedicated WIF job succeeds. Initial account authorization and third-party API credential issuance remain account-owner prerequisites, not resources Terraform can conjure without an identity.
+The source helper is created with local Terraform and the existing source profile;
+the source tenancy has no GitHub WIF configured for this project. It is an isolated,
+temporary copy resource, not destination application infrastructure. Native OCI
+instance-principal and native B2 rclone backends copy the original object names.
+`copy` never deletes source or unrelated destination objects. Full streamed content
+verification follows; five zero-byte folder markers are copied separately through
+the native API. Keep transfer credentials/logs/inventories outside Git and GitHub.
+Delete the helper and revoke its temporary B2 key after verification.
 
-The existing grocery GitHub issuer trust is intentionally shared in the destination identity domain. OCI permits only one trust per issuer in a domain. The owner-approved bootstrap helper adds the Home Movies client, audience and exact environment mappings with a conditional additive PATCH, preserving the grocery configuration. Dedicated Home Movies service users/groups carry separate IAM grants. Do not import the shared trust into competing project Terraform states or replace it through a project apply. See [Checkpoint 6](checkpoint-6-identity-creation.md) for verified results. Terraform manages the project IAM policies, standard Vault/software key, and state resources where the provider supports the required attributes. For creation/rotation of a confidential OAuth application's client secret, use a small bootstrap API helper if needed, so the secret value does not enter Terraform state. GitHub environment settings/secrets can be provisioned by an idempotent configuration script using a narrowly scoped GitHub administration credential; the ordinary workflow GITHUB_TOKEN must not be assumed to administer environments and secrets. This administration credential is also a setup prerequisite.
+## Remaining acceptance before merge
 
-**Terraform ownership and state.** Proposed repository layout:
+1. Finish the library copy, full-content verification and exact name/size inventory
+   comparison. Source objects and the running source app stay intact.
+2. Remove the synthetic-only discovery setting, reload the application and verify
+   all seven HLS collections and 30 standalone MP4 files through the public site.
+3. Have the owner test real playback, seeking and sharing on family devices. Any
+   codec incompatibility needs a separate decision; do not silently transcode files.
+4. Confirm documentation and the manual B2 upload procedure match the implementation,
+   CI passes, and no legacy source-deployment workflow remains on the branch.
+5. Merge only after full cutover acceptance. Keep the existing source resources
+   until the owner explicitly authorizes their retirement. The owner can restore
+   the previous DNS record for a simple rollback while those resources remain.
 
-| Path | Responsibility |
-|---|---|
-| `infra/foundation/` | WIF/IAM foundation, private versioned state bucket, Vault/software key |
-| `infra/application/` | Destination VM/boot disk, app NSGs, NLB/listeners/backend/health check, public IP, runtime identity and required networking references |
-| `infra/migration/` | Temporary source-tenancy VM, restricted source-bucket access, run-command access, log/checkpoint bucket |
-| `.github/actions/setup-oci-wif/` | Adapted grocery exchange helper |
-| `.github/workflows/ci.yml` | App tests, HLS fixtures, Terraform formatting/validation, ARM64 build checks |
-| `.github/workflows/infrastructure.yml` | Foundation and application plans/applies with WIF |
-| `.github/workflows/application.yml` | Build immutable release, deploy through OCI Run Command, report basic readiness/smoke-test results |
-| `.github/workflows/migration.yml` | Provision source worker, start/resume copy, verification, final delta, explicit cleanup |
-| `scripts/` | Idempotent external-service configuration, deployment, migration and verification helpers |
-
-Use the native OCI Terraform backend with `SecurityToken` authentication, locking, and a private versioned state bucket. Pin a tested Terraform version supporting this backend and the OCI provider lock file. Distinct state keys such as `homemovies/foundation.tfstate`, `homemovies/application.tfstate`, and source-tenancy `homemovies/migration.tfstate` keep ownership separate from grocery infrastructure. State is small and consumes object storage, not another block volume. Bound retained state versions within the shared Standard Object Storage allowance. [Native OCI backend](https://developer.hashicorp.com/terraform/language/backend/oci)
-
-For first state-bucket creation, use an explicit local backend in an ephemeral working copy, apply the foundation, and immediately migrate its state into OCI before reporting success. Do not assume `init -backend=false` makes an existing remote backend usable for apply. Existing buckets must be inspected/imported deliberately; an authorization or network error must not be treated as proof that a bucket is absent. Protect the state bucket and Vault key against routine destruction. If migration fails after resources are created, preserve an encrypted recovery copy of local state and fail the job; never lose the only state with the runner. Retrying should resume/import the same resources, not create duplicates.
-
-Reference shared VCN/subnet/gateway OCIDs using inputs/data sources when those resources already belong to the other project. Do not import them into a second state or claim them as new Home Movies resources. Use the externally supplied existing application compartment OCID; never hardcode its name/identifier or create a replacement compartment. Validate destination region, A1 CPU/RAM, total boot/block allocation, NLB availability, and expected VM replacement before apply. A 50GB disk is an explicit requirement. Set `instance_options.are_legacy_imds_endpoints_disabled = true` for both destination and migration VMs. Reject plans that enable legacy metadata or unexpectedly replace the destination VM after state exists.
-
-The one destination VM is initially reached through a staging hostname and later becomes production. Keep the same resource names, OCI identities, disk, NLB address, and Terraform state key throughout promotion. GitHub staging/production environments govern authorization, not duplicate physical environments. Avoid `create_before_destroy` or rolling replacement that silently demands another 50GB boot disk. Do not add a replacement/recovery workflow in the initial implementation. Changeable host configuration belongs in the deployment path; do not use changing cloud-init content as an accidental VM-replacement mechanism.
-
-**Workflow execution and branch isolation.** All work is on `codex/oci-a1-b2-migration`. Home Movies currently uses `main`; grocery uses `master`. Treat the user's requested merge to master as promotion to Home Movies' existing protected production/default branch, `main`, unless a branch rename is separately requested. Preserve the current production commit with a release tag when implementing cutover. No force push or default-branch rename is necessary.
-
-There is an important bootstrap detail: GitHub requires a `workflow_dispatch` workflow to exist on the default branch. Brand-new workflows living only on the migration branch cannot simply be manually dispatched before merge. Initially use **branch push events** for staging jobs, with explicit opt-in operation controls. Federation verification accepts all repository branches, while provisioning remains gated on its reviewed plan. Source migration can use an opt-in environment variable and reruns of the branch workflow to start/resume operations. This avoids merging a dispatcher or migration implementation into production merely to test it. Once merged, enable default-branch production push deploys and manual infrastructure/migration operations. [GitHub workflow dispatch requirement](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatch)
-
-CI has no production secrets and runs on every implementation change. Authenticated plans run only for trusted branch/environment jobs; an untrusted PR receives offline validation, not state access. Serialize operations using both Terraform state locks and GitHub concurrency with `cancel-in-progress: false`. App deployment and cutover share a destination-host concurrency group so they cannot modify Caddy, SQLite, or the release concurrently. Plan/apply operate on the same checked-out commit; fresh credentials are obtained for each privileged job. Check token expiry before apply, bound job duration, and test renewal behavior instead of assuming a token acquired before a long approval pause remains usable.
-
-Replace the old container-instance workflow in the migration branch, with staging-only triggers until cutover. The unchanged default branch continues using its current workflow; freeze its releases during the final cutover window. The merge commit removes the legacy deploy workflow and activates only the new VM pipeline. Separately disable any source-tenancy OCI DevOps/webhook deployment trigger before merge so an external pipeline cannot redeploy the old architecture. Keep historical recovery in a tag rather than maintaining parallel storage adapters or permanent old/new deployment switches after promotion.
-
-**Application deployment from Actions.** Build `linux/arm64`, publish a commit tag and digest to GHCR, and record image provenance. Deploy by immutable digest. The grocery workflow verifies anonymous pull access; make the credential-free public image option deliberate and verify no secrets are present. A private GHCR package instead needs a read-only registry credential on the VM, retrieved from Vault; the Actions job's GITHUB_TOKEN is not a permanent runtime pull credential.
-
-Choose a supported Oracle Linux A1 platform image, enable the OCI Cloud Agent Run Command plugin in Terraform, and grant narrowly scoped run-command permissions. Actions uses its federated identity to submit a short command invoking a root-owned deployment helper. OCI Run Command reaches private instances without inbound SSH. Cloud-init installs Caddy/container runtime and the helper, prepares persistent directories, and grants `ocarun` only the helper's required sudo entry; do not copy the documentation's unrestricted sudo example. Keep secrets out of command payloads and output. [OCI Run Command](https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/runningcommands.htm)
-
-The helper verifies the allowed registry/image and digest syntax, takes a host deployment lock, pulls the release, initializes the token-cache schema, starts the container, and checks readiness through Caddy. Caddy remains a supervised host service. Flask uses instance-principal access to named Vault secret OCIDs; neither Actions nor Terraform passes B2 credentials into cloud-init. The local readiness check must exercise app initialization and SQLite access; public staging/production smoke checks must test HTTPS, login/share behavior, and authorized manifest output with redacted logs.
-
-Keep SQLite in `/var/lib/homemovies/` on the boot disk solely as the replacement for Redis's expiring authentication/authorization token cache. Token-validation metadata is part of that cache; account credentials remain in Vault and the catalog/media remain in B2. **Do not provision SQLite backups, restore jobs, backup buckets, or cache-data migration.** Keep the cache file across ordinary container restarts for convenience, but recreate it empty on VM replacement, cache corruption, or an incompatible cache-schema change. Missing cached tokens fail closed; the normal login/authorization flow issues fresh tokens. If an image rollback needs an earlier incompatible cache schema, reset the cache instead of restoring a database. There is no durable business database to recover.
-
-**Cache TTL enforcement and maintenance.** Initialize token rows with non-null UTC epoch deadlines and an expiry index. Keep the existing 15-minute QR and 48-hour share TTL durations; QR approval/polling retains the original challenge deadline. All reads, existence checks, approvals, and atomic single-use consumption reject `expires_at <= now`, independently of physical deletion. Derivative playback/B2 grants are capped by the parent authorization deadline and cannot be renewed using an expired parent.
-
-Cloud-init provisions a one-minute systemd maintenance timer invoking the same cache-maintenance code, in bounded batches; startup also purges expired rows. Consumed one-use tokens are removed immediately. SQLite uses short rollback-journal transactions and bounded lock waits; no database lock spans a B2 call. Configure incremental auto-vacuum before schema creation and perform bounded reclamation after purging. Apply a 32MiB starting main-file cap to each writable connection, limits on token counts/metadata, and issuance throttling. Fail closed on cache capacity/locking failures. Expiry security does not depend on timer success, and maintenance never backs up the token cache. [SQLite storage controls](https://www.sqlite.org/pragma.html)
-
-CI must test expiry boundaries, cleanup outages, restart, non-refreshing reads/approvals, concurrent QR consumption, issuance/cleanup churn, and full/busy-cache rejection. Verify the maintenance timer is enabled and runs on the provisioned VM. Ongoing monitoring integrations are deferred; timer-based expiry cleanup remains required application functionality.
-
-**Automated external-service configuration.** OCI infrastructure remains Terraform-managed. Configure the B2 bucket, encryption, CORS, lifecycle, upload key, and restricted runtime key using an idempotent native-B2 helper in the infrastructure workflow. This avoids introducing an unreviewed third-party Terraform provider or persisting B2-generated application-key values in Terraform state. Store resulting runtime credentials directly in OCI Vault; record only non-secret IDs/configuration in deployment outputs. Terraform must not use secret-bundle data sources or secret-content arguments that would copy these values into state; pass only secret OCIDs to the VM. A separate protected B2 provisioning credential is still necessary to create these resources. Retry handling must account for a key having been created before its one-time secret was successfully written to Vault.
-
-GoDaddy is the authoritative DNS provider. Do not copy grocery's `oci_dns_rrset` resource: it changes OCI DNS, not GoDaddy's authoritative records. Use a scoped workflow helper with the official GoDaddy API to manage only the staging/movie hostname records, record their prior values, and validate the returned operation. Keep the GoDaddy API credential separate from Flask runtime secrets. Initial provisioning writes staging DNS only; production DNS changes only in cutover. [GoDaddy DNS API](https://developer.godaddy.com/en/docs/references/rest/domains/v3)
-
-**Source-tenancy migration worker.** Actions provisions a temporary source-tenancy Oracle Linux VM using a separately scoped source WIF identity. A starting size of 2 OCPUs/8GB is sufficient for a bounded rclone transfer; this is temporary paid capacity in the unrestricted source tenancy, not part of the destination free allowance. Use IMDSv2 only, outbound HTTPS, and no public SSH. The worker's instance principal can list/read only the source movie bucket and retrieve only its B2 migration key. It needs no source delete permission. The destination application and grocery resources remain outside this identity's permissions.
-
-Use pinned rclone with its native `oracleobjectstorage` and `b2` backends. Configure OCI source authentication as `instance_principal_auth`; obtain the B2 migration key from a named source Vault secret into a protected temporary configuration/environment. A provisioning job can seed that secret securely once, without placing its value in Terraform state. The migration key has destination list/read/upload capabilities needed for copying and verification, but not general account administration. [rclone OCI authentication](https://rclone.org/oracleobjectstorage/), [rclone B2 backend](https://rclone.org/b2/)
-
-Preserve every selected object's complete key. Object-store directories are prefixes, not filesystem directory resources. Inventory spaces, Unicode, encoded characters, any folder-marker objects, and manifests referencing paths outside their apparent movie directory before copying. In particular, verify rclone's filename encoding settings rather than assuming unusual keys round-trip unchanged. Re-encode no video during migration. Copy current visible objects; migrate historical versions only if explicitly required and included in the storage budget.
-
-The following commands illustrate worker operations with preconfigured remotes and placeholder bucket names, not secrets:
-
-```sh
-rclone copy source:source-movies b2:destination-movies --dry-run
-rclone copy source:source-movies b2:destination-movies --transfers 8 --checkers 16
-rclone check source:source-movies b2:destination-movies --download --combined /var/lib/homemovies-migration/verification.txt
-```
-
-`copy` preserves the source and does not delete extra destination objects. Native transfers stream through bounded worker buffers and need no 200GB staging disk. Verification with `--download` compares both remotes on the fly; it avoids treating incompatible MD5/SHA1 or multipart ETags as proof of equality. Verify the exact source movie key set against the destination, preserving every filename and complete prefix; discovery uses an in-memory B2 listing cache rather than generated catalog objects. [rclone copy](https://rclone.org/commands/rclone_copy/), [rclone verification](https://rclone.org/commands/rclone_check/)
-
-A small Run Command starts a supervised, persistent migration job on the source VM. It should not keep one GitHub runner or expiring WIF session alive for the entire 200GB transfer. The job records a run ID, inventory, exit status, progress, and private reports in the source tenancy. Subsequent Actions jobs poll/collect status and can resume the idempotent copy. Treat Actions cancellation separately from worker cancellation, prevent concurrent copies, and never report success merely because the background process was launched. Bound retry/log retention and account for one-time source compute/egress and B2 verification-download usage.
-
-After copying, check object counts and bytes, full byte verification, MIME types, manifest dependencies, and authorization prefixes. If verification finds mismatches, recopy only the reported keys with change detection bypassed, then repeat verification; a routine incremental copy can otherwise skip a same-size corrupted object. Validate Content-Type through the actual B2 download path; explicitly set metadata where necessary rather than assuming cross-provider metadata portability. Cache-Control, Content-Disposition, and playlist/TS/fMP4 MIME types matter to playback. Verify library discovery from B2 with a five-minute in-memory cache refreshed on library requests. Repeat a delta copy and verification after coordinating the final source upload pause. Do not use a destructive move/sync, and do not delete source originals during migration.
-
-**Simple functional promotion and acceptance.** Use the existing infrastructure, deployment, and migration jobs; a separate cutover/rollback workflow is deferred:
-
-1. Establish identity prerequisites, then apply the destination foundation and app infrastructure from the branch. Configure B2 and Vault; deploy the branch image to the single target VM under staging DNS. Create the temporary source worker through the migration workflow.
-2. Copy/verify the library while the old service remains available. Test rewritten playlists, authorization, cross-prefix rejection, token expiry/cleanup, login/share behavior, ARM64 compatibility, and playback/seeking on required family devices. Confirm media bytes originate from B2 and validate the manual upload runbook.
-3. Confirm Terraform apply and deployment readiness succeed. Inspect actual target tenancy CPU/RAM/block usage, including retained disks. Complete the documentation checkpoint below against the tested deployment before scheduling cutover. Detailed rollback, outage, rotation, and recovery rehearsals are deferred.
-4. Coordinate the clean cutover with the small audience, complete the final source delta and byte verification, and record the tested code SHA/image digest. Disable the external legacy deployment trigger. Keep the source intact until the new site's functional checks pass.
-5. Use the existing infrastructure/deployment jobs from the tested branch to configure the production Caddy hostname and GoDaddy movie record. Reuse the tested image digest and verify production HTTPS, login/share behavior, library discovery, and playback. Let stock Caddy obtain its certificate through automatic HTTPS. Advanced DNS transition planning, certificate preissuance, and automated DNS rollback are deferred.
-6. After the actual cutover has passed acceptance checks, stop automatic staging deploys to this now-live VM and merge the tested branch into the existing default branch. The merge removes the old container-instance workflow. The new production pipeline should recognize the already deployed tested digest and identical code tree instead of redeploying unnecessarily. If merge resolution changes executable code/configuration, validate a new artifact before promoting it. Keep the same Terraform state and physical infrastructure. Revoke the temporary migration-branch cutover permission; ongoing deployments come only from the default branch.
-7. Monitor the accepted new application and reissue old OCI share/PAR-dependent links as needed. Subsequent uploads follow the [manual native-B2 runbook](manual-b2-upload.md) from the operator's computer, using the exact existing filenames/prefixes. No CI upload/catalog job, renamed prefixes, reverse media synchronization, or fixed 48-hour upload freeze is required. Movie discovery refreshes from B2 on library requests after its five-minute cache TTL; no app deploy is needed for a new movie. Runtime token state stays only in SQLite. See [remaining design decisions and acceptance evidence](migration-design-gaps.md).
-8. After production acceptance, a separately invoked retirement workflow removes the migration VM and source resources owned by this app, revokes migration/seed credentials and OCI PAR policies, and removes obsolete deployment configuration. It must not destroy the shared grocery LB, VCN, data volumes, or Terraform foundation/state. Delete only explicitly inventoried retained disks/buckets; verify billing and retention afterward.
-
-The target repository contains one B2/SQLite/VM implementation after promotion. Recovery uses recorded images, versioned Terraform infrastructure state, Vault credentials, B2 media, and the historical release tag; the SQLite token cache starts empty. The original default branch is untouched until cutover acceptance; branch-local changes and tests do not mutate the old cloud deployment.
-
-## Documentation checkpoint before cutover
-
-After the destination deployment, migration helper and upload procedure have
-been exercised, update every README and relevant document to the final B2,
-SQLite, A1 VM, Caddy/NLB, Vault and GitHub Actions architecture. This includes
-repository and OCI DevOps READMEs, local setup/debugging, credentials/configuration
-examples, deployment triggers, Terraform bootstrap, migration commands and cleanup.
-Remove obsolete OCI media/PAR, Redis, container-instance and Certbot operational
-instructions from the active documentation. Historical design notes may remain
-only if clearly marked as history and linked to the current procedures.
-
-Preserve the useful movie preparation/encoding instructions and migrate the
-movie upload runbook completely to native B2. Validate its commands against the
-installed CLI version, MIME metadata, exact existing filenames/prefixes, verification,
-credential cleanup and automatic catalog refresh. Uploads remain a manual procedure
-once or twice a year, with no CI upload or filename/prefix redesign.
-
-Walk through bootstrap, deployment and one synthetic movie upload using only
-the updated documentation. Check links/examples, confirm no credentials, personal
-data, real compartment names/OCIDs or inventories are committed, and remove any
-claims describing planned behavior as already implemented. Finish and review this
-checkpoint on the migration branch before cutover and merge to the default branch.
-
-## Continuous application checks
-
-The branch workflow `.github/workflows/public-files.yml` runs offline tests and
-public-file checks on every push to any branch and on pull requests. It receives
-no cloud credentials and performs no live OCI or B2 operations. Coverage measures
-all application Python modules under `python_app`, including runtime/Vault startup;
-tests are outside the measured application source. `.coveragerc` requires at least
-91% statement coverage, so a result of 90% does not pass. Coverage and test failures
-fail the job. Live private-B2 probes remain explicit migration checkpoints.
-
-During the GitHub configuration checkpoint, make this job a required check for
-merging to the default branch. CI execution starts once the branch/workflow is
-pushed; neither a workflow run nor a branch-protection change is implied by local
-validation alone.
+No Redis/SQLite backup workflow, Kubernetes cluster, certificate PV, automated
+monitoring program, or extra catalog/prefix/version system is required. Uploads
+remain a manual operation using the [B2 runbook](manual-b2-upload.md).

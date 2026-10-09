@@ -1,5 +1,9 @@
 # Checkpoint 2: synthetic B2 integration validation
 
+This checkpoint records the state at that stage. For current architecture and
+remaining work, see [the accepted architecture](oci-migration-proposal.md) and
+[Checkpoint 9](checkpoint-9-mp4-and-library-transfer.md).
+
 The existing app startup and deployment are unchanged. `python_app/b2_media.py`
 contains independently tested primitives for later integration with authenticated
 Flask routes. Child playlists stay on application routes; media objects, keys,

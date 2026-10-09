@@ -5,9 +5,9 @@ managed SSH plugin on the Oracle Linux VM. The VM has no public IP. Port 22 is
 allowed only from the Bastion's private endpoint. GitHub deployment uses Run
 Command independently of these SSH sessions.
 
-Set the protected environment variable `OCI_BASTION_CLIENT_CIDR` to your current
+Set the GitHub infrastructure environment variable `OCI_BASTION_CLIENT_CIDR` to your current
 public IPv4 address followed by `/32` before provisioning. If it changes, update
-the variable and apply the reviewed Terraform change. Do not open SSH to the
+the variable and run the infrastructure Terraform apply. Do not open SSH to the
 Internet. Sessions last at most one hour.
 
 For occasional maintenance:
@@ -15,7 +15,9 @@ For occasional maintenance:
 1. Sign into the destination OCI tenancy and open the Home Movies Bastion.
 2. Create a **Managed SSH** session targeting the Home Movies instance, with
    operating-system user `opc` and a one-hour lifetime.
-3. Upload your local **public** SSH key, normally `$HOME/.ssh/id_rsa.pub`.
+3. Upload your local **public** SSH key. If `$HOME/.ssh/id_rsa.pub` is absent,
+   derive it locally with `ssh-keygen -y -f "$HOME/.ssh/id_rsa"`; never upload the
+   private key.
 4. Wait for the session to become active, then use **Copy SSH command**.
 5. Replace the command's private-key placeholder with `$HOME/.ssh/id_rsa` and run
    it locally. The private key stays on your computer. The agent supplies session
@@ -31,6 +33,6 @@ runtime configuration source. A new deployment/restart reloads the secret.
 
 If the Bastion agent or host is unhealthy, an SSH session may not be available.
 OCI Run Command and the instance console are separate troubleshooting options;
-their functionality and permissions will be checked during the live checkpoint.
+Run Command and managed SSH were verified in the application deployment checkpoint.
 
 [OCI managed SSH sessions](https://docs.oracle.com/en-us/iaas/Content/Bastion/Tasks/create-session-managed-ssh.htm).

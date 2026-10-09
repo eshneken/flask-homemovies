@@ -1,7 +1,8 @@
 # Checkpoint 9 — MP4 compatibility and library transfer
 
-Status: MP4 deployment and public synthetic checks passed. Source-only migration
-helper preparation is in progress; the full library copy has not started.
+Status: MP4 deployment and public synthetic checks passed. The source helper is
+running the library copy, followed automatically by full streamed verification.
+The destination application remains synthetic-only until verification completes.
 
 ## MP4 playback
 
@@ -74,8 +75,9 @@ a private file transferred over SSH, outside Terraform and GitHub.
 
 The native OCI rclone file listing preserves the 12,056 file object names. Five
 additional source objects are zero-byte folder markers ending in `/`; rclone
-omits those as directory entries, so they must be copied separately through the
-native APIs. Verify all 12,061 object names and sizes including those markers.
+omits those as directory entries. All five were copied successfully through the
+native B2 HTTP upload API, retaining their exact names and zero-byte payloads.
+The SDK upload helper rejects trailing slashes, but the native API accepts them. Verify all 12,061 object names and sizes including those markers.
 Use a streamed full-content check for the files, not a size-only acceptance.
 Retain private results, remove the temporary helper resources after completion,
 and revoke its temporary B2 key. The existing source objects remain intact.
@@ -84,3 +86,12 @@ The manual upload runbook now includes `scripts/check_mp4_prefixes.py`, which
 checks the entire existing namespace together with candidate upload names before
 any upload. It rejects non-catalog sidecars and directory keys extending an MP4
 filename, without printing private object names.
+
+The source helper's native instance-principal listing was compared by a canonical
+name digest against all 12,056 file entries before transfer. The B2 migration key
+was verified as restricted to the intended private bucket with no filename-prefix
+limit and native read/write capabilities. The destination initially contained only
+synthetic fixtures. `rclone copy --immutable --size-only` preserves completed files
+when resumed; it does not delete source or unrelated destination objects. The job
+then runs `rclone check --download --one-way` for full file-content comparison.
+Do not enable the real catalog based only on copy completion or matching sizes.

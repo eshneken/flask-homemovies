@@ -1,5 +1,9 @@
 # Checkpoint 5 — read-only GitHub federation bootstrap plan
 
+This checkpoint records the state at that stage. For current architecture and
+remaining work, see [the accepted architecture](oci-migration-proposal.md) and
+[Checkpoint 9](checkpoint-9-mp4-and-library-transfer.md).
+
 Historical checkpoint: GitHub reviewer requirements described below were removed
 at the owner’s request during Checkpoint 7. Subsequent jobs run without approval
 gates and progress is reported at chat checkpoints.

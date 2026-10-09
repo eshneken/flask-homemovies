@@ -1,5 +1,9 @@
 # Checkpoint 3: authenticated Flask playback and SQLite tokens
 
+This checkpoint records the state at that stage. For current architecture and
+remaining work, see [the accepted architecture](oci-migration-proposal.md) and
+[Checkpoint 9](checkpoint-9-mp4-and-library-transfer.md).
+
 The migration branch now has one application media implementation: native B2.
 `app.py` loads private runtime configuration, `service.py` handles authenticated
 views, and `b2_repository.py` discovers HLS movies and reads small playlists.

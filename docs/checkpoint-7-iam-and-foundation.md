@@ -1,5 +1,9 @@
 # Checkpoint 7 — initial IAM and durable Terraform state
 
+This checkpoint records the state at that stage. For current architecture and
+remaining work, see [the accepted architecture](oci-migration-proposal.md) and
+[Checkpoint 9](checkpoint-9-mp4-and-library-transfer.md).
+
 Status: complete — IAM/foundation apply and both permanent WIF identities verified.
 This checkpoint does not provision a VM, network, NLB,
 Bastion, application secret or DNS record, and does not copy any movies.

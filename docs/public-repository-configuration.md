@@ -2,16 +2,19 @@
 
 The target compartment is created by the account owner before infrastructure bootstrap. Supply its name and OCID through GitHub Actions environment variables. Terraform references the supplied compartment; it does not create, import, rename, or destroy it. No destination tenancy identifiers or actual compartment names are hardcoded in repository files.
 
-Configure these under the GitHub deployment environment's **Environment variables**:
+Configure these under the appropriate GitHub infrastructure/deployment environment's **Environment variables**:
 
 | Variable | Value supplied outside Git |
 |---|---|
 | `OCI_COMPARTMENT_NAME` | Name of the compartment created by the account owner |
 | `OCI_COMPARTMENT_OCID` | Its actual compartment OCID; required authoritative Terraform input |
+| `OCI_DEPLOYMENT_GROUP_OCID` | Dedicated deployment group; required by the application infrastructure policy |
+| `OCI_STATE_BUCKET_NAME` | Private native OCI Terraform state bucket |
+| `OCI_INSTANCE_OCID` | Destination A1 instance; needed by the release workflow |
 | `OCI_TENANCY_OCID` | Destination tenancy OCID |
 | `OCI_REGION` | Destination home region |
 | `OCI_AVAILABILITY_DOMAIN`, `OCI_IMAGE_OCID` | Reviewed A1 placement and Oracle Linux 9 platform image; VCN/subnet are created separately for this application |
-| `OCI_RUNTIME_SECRET_OCID` | One named runtime JSON secret containing the application and B2 settings |
+| Runtime secret OCID | Derived privately from application Terraform outputs; installed on the VM, not a required GitHub variable |
 | `APP_HOSTNAME`, `ACME_EMAIL` | Hostname for the deployment being tested and certificate contact |
 | `OCI_BASTION_CLIENT_CIDR` | Operator public IPv4 address as a /32; stored outside Git |
 | `APP_IMAGE_REPOSITORY` | Dedicated GHCR application repository, without tag or digest |
@@ -26,7 +29,7 @@ Jobs must declare their GitHub environment to consume environment-level `vars`. 
 ```yaml
 jobs:
   infrastructure:
-    environment: homemovies-production
+    environment: homemovies-infrastructure
     runs-on: ubuntu-latest
     env:
       TF_VAR_compartment_ocid: ${{ vars.OCI_COMPARTMENT_OCID }}
@@ -43,7 +46,7 @@ jobs:
       # Terraform consumes TF_VAR_* automatically; do not echo their values.
 ```
 
-The snippet is a configuration contract for the migration implementation, not an executable infrastructure workflow already present. Use the same externally supplied compartment OCID for staging and production on the single destination VM. A name alone is not used to guess a compartment or silently create one. [GitHub environment variables](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables)
+The snippet illustrates the configuration contract; the implemented infrastructure workflow is `oci-application-infra.yml`. Configure infrastructure variables in `homemovies-infrastructure` and release variables in `homemovies-production`. Both use the same externally supplied destination compartment. A name alone is not used to guess a compartment or silently create one. [GitHub environment variables](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables)
 
 Credentials such as WIF client secrets and provisioning keys remain GitHub environment **secrets**; application credentials remain in OCI Vault. Actions variables are configuration, not secret storage. Avoid logging their values; mask identifiers before commands that could expose them and keep Terraform plan/apply output containing actual identifiers out of public logs/artifacts. Deployment helpers report status without dumping OCI API responses, secret bundles, or generated token URLs.
 

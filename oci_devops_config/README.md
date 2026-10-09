@@ -1,35 +1,11 @@
-# OCI DevOps Configuration
+# Deployment has moved to GitHub Actions
 
-This folder contains some setup artifacts for using OCI DevOps.  This approach has been deprecated and the recommended solution is using GitHub Actions as described in the main README.md.
+OCI DevOps build/command specifications and the source Container Instance pipeline
+are retired on this migration branch. The implementation uses Terraform with
+GitHub workload identity federation and immutable ARM64 releases to an OCI VM.
+See [the application README](../README.md), [infrastructure](../infra/README.md)
+and [automation/cutover](../docs/automation-and-cutover-plan.md).
 
-Below find some of the IAM setup for OCI DevOps and build and command spec files are also maintained in this directory for posterity.
-
-1. IAM Setup
-    1. Dynamic Group Creation
-
-        1. hm-devops-dg rule with ANY selected (one rule)
-        ```
-        All {resource.compartment.id = '${OCI_COMPARTMENT_OCID}', Any {resource.type = 'devopsdeploypipeline', resource.type = 'devopsbuildpipeline', resource.type = 'devopsbuildrun', resource.type = 'devopsdeploystage', resource.type = 'devopsdeployenvironment', resource.type = 'devopsrepository', resource.type = 'devopsconnection', resource.type = 'devopstrigger'}}
-        ```
-     1. Policy Setup
-
-        1. devops-policy in the compartment selected by OCI_COMPARTMENT_OCID
-        ```
-        Allow dynamic-group hm-devops-dg to read secret-family in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to read secret-family in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage devops-family in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage devops-family in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage virtual-network-family in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage virtual-network-family in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage ons-topics in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage ons-topics in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage objects in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage objects in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage all-artifacts in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage all-artifacts in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage repos in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage repos in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage compute-container-family in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to manage compute-container-family in compartment id ${OCI_COMPARTMENT_OCID}
-        Allow dynamic-group hm-devops-dg to use compute-container-instances in compartment id ${OCI_COMPARTMENT_OCID}
-        ```
+The default branch and existing source deployment remain intact until final
+migration acceptance. Original OCI DevOps artifacts are available in Git history;
+do not use them to deploy this branch.

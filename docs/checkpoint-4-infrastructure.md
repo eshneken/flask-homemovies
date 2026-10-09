@@ -1,5 +1,9 @@
 # Checkpoint 4 — destination infrastructure preparation
 
+This checkpoint records the state at that stage. For current architecture and
+remaining work, see [the accepted architecture](oci-migration-proposal.md) and
+[Checkpoint 9](checkpoint-9-mp4-and-library-transfer.md).
+
 ## Verified so far
 
 Work remains on `codex/oci-a1-b2-migration`. The destination profile authenticated

@@ -1,5 +1,9 @@
 # Checkpoint 6 — dedicated identities with the existing GitHub trust
 
+This checkpoint records the state at that stage. For current architecture and
+remaining work, see [the accepted architecture](oci-migration-proposal.md) and
+[Checkpoint 9](checkpoint-9-mp4-and-library-transfer.md).
+
 Status: complete. Dedicated identities exist and the shared trust update is verified.
 
 Subsequent owner preference: GitHub reviewer gates were removed during

@@ -90,7 +90,7 @@ Upload the movie's dependencies before its main playlist. The exclusion also ski
 
 ```bash
 b2 sync --dry-run \
-  --exclude-regex '(^|.*/)(output\.m3u8|\.DS_Store)$' \
+  --exclude-regex '^output\.m3u8$|(^|.*/)\.DS_Store$' \
   "$MOVIE_DIR" "b2://$MOVIE_BUCKET/$MOVIE_PREFIX"
 ```
 
@@ -98,7 +98,7 @@ Read the preview and confirm the destination is the intended movie prefix. Then 
 
 ```bash
 b2 sync \
-  --exclude-regex '(^|.*/)(output\.m3u8|\.DS_Store)$' \
+  --exclude-regex '^output\.m3u8$|(^|.*/)\.DS_Store$' \
   "$MOVIE_DIR" "b2://$MOVIE_BUCKET/$MOVIE_PREFIX"
 ```
 

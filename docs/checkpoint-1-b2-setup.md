@@ -1,5 +1,9 @@
 # Checkpoint 1: private Backblaze setup
 
+This checkpoint records the state at that stage. For current architecture and
+remaining work, see [the accepted architecture](oci-migration-proposal.md) and
+[Checkpoint 9](checkpoint-9-mp4-and-library-transfer.md).
+
 Work stays on `codex/oci-a1-b2-migration`. The existing application is unchanged.
 This checkpoint checks account access and privacy; it does not transfer movies,
 issue download grants, deploy infrastructure, or enable B2 playback.
