@@ -30,7 +30,7 @@ def create_runtime_app():
         api = B2Api(InMemoryAccountInfo())
         api.authorize_account(settings['B2_APPLICATION_KEY_ID'], settings['B2_APPLICATION_KEY'])
         repository = B2Repository(api, settings['B2_BUCKET_ID'],
-                                  discovery_prefix=settings.get('TEST_DISCOVERY_PREFIX', ''))
+                                  discovery_prefix=settings.get('CATALOG_PREFIX', ''))
         return create_app(settings, repository)
     except Exception:
         raise RuntimeError('Application initialization failed; verify private settings and service access. Raw details suppressed.') from None

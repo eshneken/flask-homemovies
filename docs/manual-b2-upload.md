@@ -2,7 +2,7 @@
 
 Use this procedure from your own computer when adding movies once or twice a year. It uses Backblaze's native CLI, without S3, GitHub Actions, or an application deployment. Preserve filenames, capitalization, spaces, and the complete destination prefix exactly. No UUID directories, release directories, or renamed movie files are introduced.
 
-The commands below use the documented B2 CLI 4.x syntax. The private B2 bucket and migrated application's automatic discovery are configured. Use a dedicated bucket-restricted upload key for this procedure. During the synthetic pilot, real-library discovery remains disabled until migration verification is complete.
+The commands below use the documented B2 CLI 4.x syntax. The private B2 bucket and application's automatic discovery are configured. Use a dedicated bucket-restricted upload key for this procedure.
 
 ## 1. Prepare the local folder and upload key
 
@@ -173,4 +173,4 @@ b2 file upload --content-type video/mp4 \
   'Years in Review/Family Highlights 2026.mp4'
 ```
 
-Then follow the same listing, library-refresh, playback, and cleanup steps. Use the actual MIME type for other supported formats; a MOV or AVI extension alone does not establish browser compatibility. Preserve existing objects during migration even when their format needs further compatibility testing.
+Then follow the same listing, library-refresh, playback, and cleanup steps. Use the actual MIME type for other supported formats; a MOV or AVI extension alone does not establish browser compatibility. Verify browser codec compatibility before publishing a new movie.

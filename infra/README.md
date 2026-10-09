@@ -1,11 +1,11 @@
 # Home Movies infrastructure
 
-The migration uses Terraform and GitHub workload identity federation. The source
-application and grocery resources are outside these modules. The owner-created
-destination compartment name and OCID are GitHub environment variables.
+The application uses Terraform and GitHub workload identity federation. Supply
+the owner-created application compartment name and OCID through GitHub
+environment variables. These modules manage only this application.
 
 - `foundation`: private versioned state bucket, standard Vault and software AES key;
-  applied and verified in [Checkpoint 7](../docs/checkpoint-7-iam-and-foundation.md).
+  provisioned through the initial infrastructure bootstrap workflow.
 - `iam-bootstrap`: separate infrastructure/deploy permissions and initial runtime
   dynamic group. Its group ownership is transferred to the application module.
 - `application`: dedicated VCN, private A1 VM (1 OCPU, 2 GB RAM, 50 GB boot), public
@@ -13,10 +13,10 @@ destination compartment name and OCID are GitHub environment variables.
   Terraform owns runtime secret metadata with an empty placeholder; real content
   goes directly into Vault and is never a Terraform input.
 
-[Checkpoint 8](../docs/checkpoint-8-application-deployment.md) describes the live
-plan/apply and ARM64 image/Run Command workflows. Both use permanent WIF identities
-in `homemovies-infrastructure` or `homemovies-production`; neither has a GitHub
-reviewer gate. Temporary administrator bootstrap triggers are disabled.
+[GitHub Actions setup](../docs/github-actions.md) describes initial bootstrap,
+ongoing Terraform plan/apply, and ARM64 image/Run Command deployment. Routine jobs
+use WIF identities in `homemovies-infrastructure` or `homemovies-production`.
+Temporary administrator bootstrap triggers remain disabled outside initial setup.
 
 Configuration stays in ignored local files and GitHub environment variables:
 `OCI_TENANCY_OCID`, `OCI_COMPARTMENT_OCID`, `OCI_COMPARTMENT_NAME`, `OCI_REGION`,

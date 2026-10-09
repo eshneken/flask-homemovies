@@ -3,9 +3,6 @@ source =
     python_app
     oci_wif
     vm_deploy
-    oci_bootstrap_plan
-    oci_bootstrap_apply
-    oci_trust_patch
     oci_bootstrap_token
     oci_infra_bootstrap
     mask_configuration

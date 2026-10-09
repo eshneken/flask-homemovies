@@ -175,10 +175,8 @@ variables, outside Git. Runtime B2/login secrets never pass through GitHub or
 Terraform. See [infrastructure](infra/README.md), [configuration](docs/public-repository-configuration.md)
 and [operations](docs/operators-guide.md).
 
-The migration remains on `codex/oci-a1-b2-migration`; the existing source app and
-default branch remain intact until final acceptance. Public DNS now reaches the
-new VM with the verified real library. Public checks passed for all 37 movies;
-see [Checkpoint 9](docs/checkpoint-9-mp4-and-library-transfer.md).
+[Runtime configuration](docs/runtime-configuration.md) lists every Vault value,
+with examples for initial population, password/key changes and version rollback.
 
 ## Movie layout and uploads
 
@@ -218,8 +216,7 @@ ffmpeg -i 'Years in Review/Movies 2026.mp4' \
   "$MOVIE_DIR/output.m3u8"
 ```
 
-Encoding is separate from migration: do not transcode or rename source files as
-part of the OCI-to-B2 copy. Browser compatibility depends on the media codecs;
+Browser compatibility depends on the media codecs;
 test real movies on the family devices before final acceptance.
 
 ## Local development and tests
@@ -262,8 +259,7 @@ a new tenancy or repository.
 Builds publish software-only ARM64 images to the public GHCR package. An immutable
 digest from this project's repository is the only deployment input. Credentials,
 private configuration and movies are excluded from the image. The public image
-contains no private library. The source Container Instance/OCIR workflow is removed
-on this branch so merging cannot trigger an old-source deployment.
+contains no private library.
 
 For occasional host access and logs, follow [VM maintenance](docs/vm-maintenance.md).
 Application settings come from Vault; restart/deploy reloads the secret. SQLite

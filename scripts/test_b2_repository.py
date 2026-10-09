@@ -21,12 +21,11 @@ class RepositoryTests(unittest.TestCase):
         self.api.list_buckets.return_value = [self.bucket]
         self.repo = B2Repository(self.api, 'bucket', clock=lambda: self.now)
 
-    def test_discovery_preserves_exact_names_and_excludes_fixtures_and_segments(self):
+    def test_discovery_preserves_exact_names_and_excludes_segments(self):
         names = ['Year/Example é.hls/output.m3u8', 'Year/Example é.hls/segment.ts',
-                 '_migration-test/Test.hls/output.m3u8', 'Year/Standalone é.MP4',
-                 'Year/Example é.hls/init.mp4', '_migration-test/test.mp4']
+                 'Year/Standalone é.MP4', 'Year/Example é.hls/init.mp4']
         self.bucket.ls.return_value = [(SimpleNamespace(file_name=n), None) for n in names]
-        self.assertEqual(self.repo.catalog(), (names[0], names[3]))
+        self.assertEqual(self.repo.catalog(), (names[0], names[2]))
 
     def test_catalog_refreshes_after_five_minutes_without_returning_stale_on_failure(self):
         self.bucket.ls.return_value = [(SimpleNamespace(file_name='Example.hls/output.m3u8'), None)]

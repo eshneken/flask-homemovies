@@ -26,7 +26,7 @@ def claims(token):
 
 
 def mint(settings, now, config_loader=oci.config.from_file, client_factory=oci.identity_data_plane.DataplaneClient):
-    config = config_loader(profile_name='EDFREETIER')
+    config = config_loader(profile_name=settings.get('oci_profile', 'HOMEMOVIES_OPERATOR'))
     if config['tenancy'] != settings['tenancy_ocid'] or config['region'] != settings['region']:
         raise WifError('Destination profile and bootstrap settings differ.')
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)

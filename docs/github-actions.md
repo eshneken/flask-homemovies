@@ -119,6 +119,43 @@ triggers disabled once the foundation exists. Routine jobs use WIF instead.
 Federation trust editing is an identity-domain administrator setup task, not a
 normal application release operation.
 
+For a fresh installation, prepare `.local/bootstrap-settings.json` (mode 600)
+with real values replacing these placeholders:
+
+```json
+{
+  "oci_profile": "HOMEMOVIES_OPERATOR",
+  "tenancy_ocid": "<target tenancy OCID>",
+  "compartment_ocid": "<application compartment OCID>",
+  "compartment_name": "<application compartment name>",
+  "region": "<OCI region>",
+  "infrastructure_group_ocid": "<infrastructure group OCID>",
+  "deployment_group_ocid": "<deployment group OCID>",
+  "state_bucket_name": "<unique private state bucket name>"
+}
+```
+
+The named local operator profile needs permission to create the foundation and
+initial tenancy IAM policy/dynamic group. It stays on your laptop. With the
+SDK dependencies installed locally, mint a separate one-hour session:
+
+```bash
+python scripts/oci_bootstrap_token.py --settings .local/bootstrap-settings.json \
+  --output .local/bootstrap-session.json
+```
+
+Upload the settings file as environment secret `OCI_BOOTSTRAP_SETTINGS_JSON`
+and the session file as `OCI_IAM_BOOTSTRAP_AUTH_JSON` in `homemovies-bootstrap`.
+Neither file belongs in the repository. Set repository variable
+`ENABLE_HOME_MOVIES_INFRA_BOOTSTRAP=true` and `HOME_MOVIES_BOOTSTRAP_OPERATION=plan`,
+then run `oci-infra-bootstrap.yml`. After reviewing the aggregate plan, set the
+operation to `apply` and rerun. Mint a fresh session if expiry is too close; the
+helper rejects sessions with less than 35 minutes remaining. Once complete,
+disable the flag, delete the temporary session secret/file, and use routine WIF.
+The workflow saves private bootstrap metadata in the state bucket and transfers
+runtime dynamic-group ownership into application Terraform on its first apply.
+
+
 ## 4. Enable checks, infrastructure and releases
 
 Repository variables control opt-in workflows; unset flags leave jobs disabled:
@@ -139,7 +176,8 @@ hosts correctly but does not replace or reconfigure an existing VM. See the
 [operator guide](operators-guide.md) for host maintenance.
 
 After infrastructure exists, add `OCI_INSTANCE_OCID` to `homemovies-production`.
-Write the runtime JSON directly into the application's named OCI Vault secret:
+Follow [runtime configuration](runtime-configuration.md) to write the complete
+JSON directly into the application's named OCI Vault secret:
 login username/password hash, persistent session signing key, public origin,
 SQLite container path and read-only B2 key/bucket ID. Do not add those settings as
 GitHub secrets or Terraform variables. Update public DNS to the NLB and keep the

@@ -121,7 +121,9 @@ container. Boot waits for networking but Vault or B2 might still be unavailable;
 retries continue while the services report failure. Caddy may return 502 until the
 app has loaded its runtime settings successfully.
 
-For an application restart after changing the Vault JSON:
+Follow [runtime configuration](runtime-configuration.md) to populate or update
+Vault, rotate keys or select a previous version. For an application restart after
+changing the Vault JSON:
 
 ```bash
 sudo systemctl restart home-movies

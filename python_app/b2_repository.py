@@ -31,8 +31,6 @@ class B2Repository:
             names = []
             for item, _ in self.bucket.ls(self.discovery_prefix, recursive=True, latest_only=True):
                 name = item.file_name
-                if name.startswith('_migration-test/') and not self.discovery_prefix:
-                    continue
                 if name.endswith('.hls/output.m3u8') or name.lower().endswith('.mp4'):
                     if any(p.lower().endswith('.hls') for p in name.split('/')[:-1]) and not name.endswith('.hls/output.m3u8'):
                         continue

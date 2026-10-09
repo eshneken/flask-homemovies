@@ -13,7 +13,7 @@ import oci_wif as wif
 
 def environment():
     return {'GITHUB_REPOSITORY': 'example/home-movies', 'GITHUB_REPOSITORY_ID': '1234',
-            'HM_GITHUB_ENVIRONMENT': 'test-staging', 'GITHUB_REF': 'refs/heads/migration', 'GITHUB_EVENT_NAME': 'push',
+            'HM_GITHUB_ENVIRONMENT': 'test-staging', 'GITHUB_REF': 'refs/heads/feature/player', 'GITHUB_EVENT_NAME': 'push',
             'OCI_WIF_AUDIENCE': 'example-audience', 'OCI_WIF_DOMAIN_URL': 'https://identity.example.com',
             'OCI_WIF_CLIENT_ID': '<test-only>', 'OCI_WIF_CLIENT_SECRET': '<test-only>',
             'ACTIONS_ID_TOKEN_REQUEST_URL': 'https://pipelines.actions.githubusercontent.com/token?api-version=1',
@@ -25,7 +25,7 @@ def jwt(**changes):
     claims = {'iss': 'https://token.actions.githubusercontent.com',
               'sub': 'repo:example/home-movies:environment:test-staging',
               'repository': 'example/home-movies', 'repository_id': '1234',
-              'aud': 'example-audience', 'ref': 'refs/heads/migration', 'exp': 2000}
+              'aud': 'example-audience', 'ref': 'refs/heads/feature/player', 'exp': 2000}
     claims.update(changes)
     encoded = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip('=')
     return 'header.' + encoded + '.signature'
@@ -57,7 +57,7 @@ class WifTests(unittest.TestCase):
                 wif.validate_claims(value, environment(), 1000)
 
     def test_all_repository_branches_are_supported_but_prs_and_tags_are_rejected(self):
-        for ref in ('refs/heads/main', 'refs/heads/feature/new-player', 'refs/heads/migration'):
+        for ref in ('refs/heads/main', 'refs/heads/feature/new-player', 'refs/heads/feature/player'):
             for event in ('push', 'workflow_dispatch'):
                 env = dict(environment(), GITHUB_REF=ref, GITHUB_EVENT_NAME=event)
                 wif.validate_claims(jwt(ref=ref), env, 1000)

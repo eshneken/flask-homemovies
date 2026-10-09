@@ -1,7 +1,7 @@
 # Run Home Movies on your laptop
 
 Run these commands from the repository root. Python 3.12 matches the application
-image; no OCI VM, Caddy, Redis, OCI credentials or separate database server is
+image; no OCI VM, Caddy, OCI credentials or separate database server is
 needed locally. SQLite comes with Python. Normal playback uses a private B2
 bucket and a read-only native application key. Offline unit tests need neither
 cloud credentials nor network access after installing dependencies.
@@ -117,7 +117,7 @@ settings = {
 }
 prefix = input('Optional exact discovery folder prefix, or Enter for entire bucket: ')
 if prefix:
-    settings['TEST_DISCOVERY_PREFIX'] = prefix
+    settings['CATALOG_PREFIX'] = prefix
 path = root / '.local/dev-app.json'
 path.write_text(json.dumps(settings))
 path.chmod(0o600)
@@ -127,7 +127,7 @@ PY
 
 For the example movie `Years in Review/Movies 2026.hls/output.m3u8`, the optional
 folder filter can be `Years in Review/`. Preserve spaces and capitalization; do
-not enter URL-escaped `%20` names. The `TEST_DISCOVERY_PREFIX` setting is optional
+not enter URL-escaped `%20` names. The `CATALOG_PREFIX` setting is optional
 local catalog filtering, not a replacement for B2 authorization. The runtime
 key's bucket scope is still checked. Use a separate local login password rather
 than copying production authentication settings.

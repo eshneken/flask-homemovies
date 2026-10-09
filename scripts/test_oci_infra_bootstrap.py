@@ -41,7 +41,7 @@ class BootstrapTokenTests(unittest.TestCase):
         client = Mock()
         client.generate_user_security_token.return_value.data.token = token({'tenant': SETTINGS['tenancy_ocid'], 'sub': 'test-user', 'exp': 4600})
         result = token_module.mint(SETTINGS, 1000, loader, Mock(return_value=client))
-        loader.assert_called_once_with(profile_name='EDFREETIER')
+        loader.assert_called_once_with(profile_name='HOMEMOVIES_OPERATOR')
         details = client.generate_user_security_token.call_args.args[0]
         self.assertEqual(details.session_expiration_in_minutes, 60)
         public = serialization.load_pem_public_key(details.public_key.encode())

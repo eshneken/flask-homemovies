@@ -1,4 +1,4 @@
-"""Private B2 playback application. No OCI Object Storage or Redis media path."""
+"""Authenticated movie catalog, sharing and direct private B2 playback."""
 import secrets
 import sqlite3
 import threading
