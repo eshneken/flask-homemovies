@@ -172,6 +172,9 @@ Gunicorn runs on macOS/Linux; use Flask's local server on Windows. If port 5055 
 already in use, stop the other local server or choose another port and update
 `PUBLIC_ORIGIN`, the startup command and the bucket's local CORS origin together.
 No SQLite process needs starting. Its file remains in `.local/dev-tokens.sqlite`.
+For VS Code, copy `launch.json.sample` into ignored `.vscode/launch.json` and select
+your virtual environment's Python interpreter. The sample runs `python_app/app.py`
+on the same loopback port with `.local/dev-app.json`; stop any CLI server first.
 
 ## 5. Run tests and inspect coverage
 

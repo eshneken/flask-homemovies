@@ -9,7 +9,7 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "env": {
-                "HM_CONFIG_FILE": "${workspaceFolder}/.local/browser-app.json"
+                "HM_CONFIG_FILE": "${workspaceFolder}/.local/dev-app.json"
             }
         }
     ]

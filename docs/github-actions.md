@@ -83,8 +83,9 @@ service-user identity:
 | `OCI_COMPARTMENT_OCID` | Owner-created application compartment |
 
 Add environment secrets `OCI_WIF_CLIENT_SECRET` and `OCI_PRIVATE_CONFIG_MASKS`.
-The first is the confidential client secret. The second is a newline-separated
-list of private configuration values to mask before jobs invoke tools. Include
+The first is the confidential client secret. The second is a JSON array
+of nonempty private configuration strings to mask before jobs invoke tools, for
+example `["<private identifier>", "<private hostname>"]`. Include
 actual identifiers, domain/hostnames, contact address, bucket names and operator
 IP where applicable. Update masks when changing those values. Variables configure
 jobs; they are not a safe place for passwords or keys. Do not add empty variables;
