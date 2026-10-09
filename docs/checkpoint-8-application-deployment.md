@@ -3,7 +3,8 @@
 Status: complete. Infrastructure, live private B2 integration and the GitHub
 deployment workflow have been validated.
 All changes remain on the migration branch. Source infrastructure, its secrets,
-movie objects, DNS and the default branch are unchanged.
+movie objects and the default branch are unchanged. Public DNS was subsequently
+switched by the owner for the synthetic pilot described below.
 
 ## Application infrastructure
 
@@ -97,22 +98,31 @@ Runtime credentials were written directly into Vault. A read of private applicat
 Terraform state confirmed the content remained the empty placeholder and did not
 contain the B2 key, password hash or session secret.
 
-Public DNS remains pointed at the old application until the later cutover
-checkpoint. We can test only public health and unauthenticated routing over HTTP using the
-configured Host header. Login credentials and playback tokens must not be sent
-over public HTTP; private authenticated tests use an encrypted Bastion tunnel.
-We can validate private application health before cutover. Public Let’s Encrypt
-issuance with standard Caddy challenges requires DNS to reach the new NLB;
-certificate issuance and browser HTTPS checks therefore remain cutover checks.
-The final documentation migration, exact-prefix OCI-to-B2 copy and manual upload
-runbook are separate checkpoints before merging the branch. The legacy default-branch
-source-deployment workflow must be removed on this branch before merge so cutover
-cannot trigger an old-source deployment. Temporary Bastion validation access has
-expired; no permanent SSH key was installed.
+## Public synthetic pilot
 
-References: [GitHub native ARM64 runners](https://github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/),
-[GitHub Container registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry),
-[OCI Run Command](https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/runningcommands.htm).
+After this checkpoint, the owner switched public DNS to the new NLB so the
+destination could be tested before copying real movies. Caddy obtained a trusted
+Let's Encrypt certificate; HTTPS was verified with normal CA and hostname checks
+and TLS 1.3. The B2 bucket remains private and exact production-origin CORS was
+verified. Only the existing synthetic HLS fixture is selected through the
+ignored `TEST_DISCOVERY_PREFIX` runtime setting in Vault. This setting remains
+active for the owner's browser testing; remove it when enabling the real library.
+
+Public HTTPS probes passed existing-credential login, nested manifest rewriting,
+direct B2 Range downloads, production CORS and guest sharing. Anonymous B2
+requests, neighboring-prefix requests and invalid shares were rejected. A Host
+that does not match Caddy's site returns an empty response without reaching the
+app; Flask's own trusted-host rejection was separately tested through Bastion.
+The owner can now log in at the configured public hostname, play and seek the
+synthetic sample, and open a generated sharing link in an incognito browser.
+Actual browser playback on the public site remains an owner acceptance check.
+
+The final documentation migration, exact-prefix OCI-to-B2 copy and manual upload
+runbook remain separate checkpoints before merge. Remove the legacy default-branch
+source-deployment workflow on this branch before merge so cutover cannot trigger
+an old-source deployment. No permanent SSH key was installed; temporary Bastion
+validation sessions are removed after testing. The old source app remains intact
+if a DNS rollback is needed.
 
 ## Next checkpoint: library compatibility and transfer
 
