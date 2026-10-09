@@ -95,3 +95,51 @@ synthetic fixtures. `rclone copy --immutable --size-only` preserves completed fi
 when resumed; it does not delete source or unrelated destination objects. The job
 then runs `rclone check --download --one-way` for full file-content comparison.
 Do not enable the real catalog based only on copy completion or matching sizes.
+
+
+## Operator documentation and restart checkpoint
+
+The owner confirmed public synthetic MP4 playback, seeking and an incognito share
+worked on the usual devices. README now contains architecture, HLS/MP4 playback
+and sharing sequence diagrams, the real SQLite token schema, and explanations of
+host Caddy, Podman/Gunicorn, embedded SQLite and boot-volume storage. Movie/upload
+examples preserve spaces in `Years in Review/Movies 2026.hls/`.
+
+[Operator guide](operators-guide.md) documents logs, paths, retention, recovery and
+reboot checks. [Bastion instructions](vm-maintenance.md) include detailed console
+steps and a CLI alternative. The current host and cloud-init template both use
+Caddy crash recovery, unlimited application startup retries, stale-container
+replacement, and persistent bounded journald retention. Updating instance metadata
+does not rerun cloud-init on an existing host; the live host was explicitly updated
+through a temporary Managed SSH maintenance session before validation.
+
+A graceful destination VM reboot was tested. The boot ID changed; Caddy and the
+application returned enabled/active without manual intervention. Public trusted
+HTTPS retained the same certificate; a pre-reboot login and share remained valid.
+Direct B2 Range reads for synthetic HLS and MP4 passed afterward. SQLite
+`integrity_check` returned `ok`. This proves graceful reboot recovery; it is not
+a forced power-loss or external-service-outage test.
+
+## Final repository cleanup checkpoint
+
+After the real library is verified and accepted, before merging the branch:
+
+- Remove checkpoint/proposal/cutover/design-gap documents and temporary migration
+  narratives. Rewrite README and retained guides to describe only the running app.
+- Preserve the manual B2 upload procedure, operator guide, Bastion instructions,
+  architecture diagrams, development/tests and generic Terraform/WIF setup.
+- Retire synthetic fixture creation/browser-check/CORS setup scripts and their
+  temporary credential requirements when those tests are no longer needed; keep
+  credential-free unit tests and the permanent MP4 upload prefix checker.
+- Remove one-time federation trust-patch/administrator bootstrap plan/apply
+  workflows and helpers after moving any reusable new-tenancy setup guidance into
+  permanent infrastructure documentation. Do not remove ongoing infrastructure,
+  image release, WIF verification or credential-free test/coverage workflows.
+- Remove the retired deployment directory and any other unused artifacts; update
+  test imports/coverage configuration and all documentation links accordingly.
+- Inventory references, rerun tests (>90% coverage), Terraform mock checks, privacy
+  checks and live deployment verification after cleanup. Never remove a helper
+  still required by a retained workflow or Terraform module.
+
+This is the final cleanup step, not an additional architecture or monitoring
+project. Source application resources and default-branch history remain untouched.

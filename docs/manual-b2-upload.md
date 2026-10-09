@@ -9,11 +9,12 @@ The commands below use the documented B2 CLI 4.x syntax. The private B2 bucket a
 For the current flat HLS format, the local movie folder contains:
 
 ```text
-Christmas.hls/
-  output.m3u8
-  output000.ts
-  output001.ts
-  ...
+Years in Review/
+  Movies 2026.hls/
+    output.m3u8
+    output000.ts
+    output001.ts
+    ...
 ```
 
 Keep the existing `output.m3u8` naming convention and relative segment references. Encode locally using the existing FFmpeg procedure if needed. Put only that movie's playback files in this folder; keep originals and unrelated files elsewhere.
@@ -44,13 +45,15 @@ Edit these three values for the movie you are uploading:
 
 ```bash
 MOVIE_BUCKET='your-private-movies-bucket'
-MOVIE_DIR='/absolute/path/to/Christmas.hls'
-MOVIE_PREFIX='2022/Christmas.hls/'
+MOVIE_DIR='/absolute/path/to/Years in Review/Movies 2026.hls'
+MOVIE_PREFIX='Years in Review/Movies 2026.hls/'
 ```
 
-`MOVIE_DIR` identifies the local folder containing `output.m3u8`. `MOVIE_PREFIX` is the complete object-name prefix, with a trailing slash and without a leading slash. It can instead be `2022.hls/`, or another existing layout: copy the actual name exactly rather than adapting it to the example.
+`MOVIE_DIR` identifies the local folder containing `output.m3u8`. `MOVIE_PREFIX` is the complete object-name prefix, with a trailing slash and without a leading slash. It can instead be `Another Collection.hls/`, or another existing layout: copy the actual name exactly rather than adapting it to the example.
 
-With the example values, local `output000.ts` becomes `2022/Christmas.hls/output000.ts`. The local folder's own name is not automatically added again. You do not need to create a B2 folder first.
+Every command quotes the source path and B2 URL, so spaces remain part of the exact object name. Do not substitute `%20` in CLI object names; the playback application encodes URLs when serving them.
+
+With the example values, local `output000.ts` becomes `Years in Review/Movies 2026.hls/output000.ts`. The local folder's own name is not automatically added again. You do not need to create a B2 folder first.
 
 Confirm the playlist exists before continuing:
 
@@ -77,7 +80,7 @@ python scripts/check_mp4_prefixes.py \
 ```
 
 Proceed only when this prints PASS. Do not create objects such as
-`Birthday.mp4.notes` or `Birthday.mp4/anything` while `Birthday.mp4` exists.
+`Family Highlights 2026.mp4.notes` or `Family Highlights 2026.mp4/anything` while `Family Highlights 2026.mp4` exists.
 Keep sidecars under a separate name. The application refuses to issue new grants
 when a collision exists, but an already-issued B2 token remains valid until expiry.
 Do not rename existing movies to fix a collision; resolve the conflicting new
@@ -159,15 +162,15 @@ Keep your local originals. Replacing files at the same keys creates older B2 ver
 
 For a standalone MP4 compatible with family browsers, preserve its exact key.
 Refresh the private inventory as in step 3 and run the same prefix checker with
-`--source '/absolute/path/to/Birthday.mp4' --prefix '2022/Birthday.mp4'` before
+`--source '/absolute/path/to/Years in Review/Family Highlights 2026.mp4' --prefix 'Years in Review/Family Highlights 2026.mp4'` before
 uploading. A file source maps to that exact key; do not append a trailing slash.
 Then upload:
 
 
 ```bash
 b2 file upload --content-type video/mp4 \
-  "$MOVIE_BUCKET" '/absolute/path/to/Birthday.mp4' \
-  '2022/Birthday.mp4'
+  "$MOVIE_BUCKET" '/absolute/path/to/Years in Review/Family Highlights 2026.mp4' \
+  'Years in Review/Family Highlights 2026.mp4'
 ```
 
 Then follow the same listing, library-refresh, playback, and cleanup steps. Use the actual MIME type for other supported formats; a MOV or AVI extension alone does not establish browser compatibility. Preserve existing objects during migration even when their format needs further compatibility testing.

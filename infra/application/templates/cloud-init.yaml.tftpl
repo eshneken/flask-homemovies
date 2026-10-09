@@ -46,9 +46,10 @@ write_files:
       Wants=network-online.target
       After=network-online.target
       ConditionPathExists=/etc/home-movies/image.env
+      StartLimitIntervalSec=0
       [Service]
       EnvironmentFile=/etc/home-movies/image.env
-      ExecStart=/usr/bin/podman run --rm --name home-movies --pull=never --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs /tmp:rw,size=64m --publish 127.0.0.1:5000:5000 --env-file /etc/home-movies/runtime.env --volume /var/lib/home-movies/tokens:/var/lib/homemovies:Z $IMAGE
+      ExecStart=/usr/bin/podman run --rm --replace --log-driver=journald --name home-movies --pull=never --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs /tmp:rw,size=64m --publish 127.0.0.1:5000:5000 --env-file /etc/home-movies/runtime.env --volume /var/lib/home-movies/tokens:/var/lib/homemovies:Z $IMAGE
       ExecStop=/usr/bin/podman stop --time 20 home-movies
       Restart=on-failure
       RestartSec=5
@@ -56,6 +57,23 @@ write_files:
       TimeoutStopSec=30
       [Install]
       WantedBy=multi-user.target
+  - path: /etc/systemd/system/caddy.service.d/recovery.conf
+    permissions: '0644'
+    content: |
+      [Unit]
+      StartLimitIntervalSec=0
+      [Service]
+      Restart=on-failure
+      RestartSec=5
+  - path: /etc/systemd/journald.conf.d/home-movies.conf
+    permissions: '0644'
+    content: |
+      [Journal]
+      Storage=persistent
+      SystemMaxUse=100M
+      SystemKeepFree=1G
+      RuntimeMaxUse=32M
+      MaxRetentionSec=14day
 runcmd:
   - [dnf, install, -y, podman, dnf-plugins-core, policycoreutils, firewalld]
   - [dnf, copr, enable, -y, '@caddy/caddy', epel-9-aarch64]
@@ -71,6 +89,7 @@ runcmd:
   - [firewall-cmd, --reload]
   - [caddy, validate, --config, /etc/caddy/Caddyfile]
   - [visudo, -cf, /etc/sudoers.d/home-movies-run-command]
+  - [systemctl, restart, systemd-journald]
   - [systemctl, daemon-reload]
   - [systemctl, enable, home-movies]
   - [systemctl, enable, --now, caddy]
