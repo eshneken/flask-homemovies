@@ -1,7 +1,7 @@
 # Checkpoint 8 — private A1 VM and application deployment
 
-Status: infrastructure applied; live B2 integration passed; corrected deployment
-workflow is being validated.
+Status: complete. Infrastructure, live private B2 integration and the GitHub
+deployment workflow have been validated.
 All changes remain on the migration branch. Source infrastructure, its secrets,
 movie objects, DNS and the default branch are unchanged.
 
@@ -76,7 +76,10 @@ Run Command deployment completed in OCI with exit code 0, but the GitHub service
 identity received 404 responses while reading its execution result. Extending the
 polling window did not resolve that denial. The application policy now explicitly
 grants the deployment group read access to command executions in this compartment;
-it grants no execution-update permission. This correction is being validated.
+it grants no execution-update permission. The [policy correction](https://github.com/eshneken/flask-homemovies/actions/runs/37866891961)
+applied with one update, no creates and no deletions. The [ARM64 release and
+private VM deployment](https://github.com/eshneken/flask-homemovies/actions/runs/37866768604)
+then completed successfully in GitHub, including the VM local health check.
 The job allows a 15-minute polling window and a 20-minute job timeout for normal
 agent delivery/reporting. The installed helper bounds each host operation and a
 remote command has a ten-minute execution limit.
@@ -102,7 +105,10 @@ We can validate private application health before cutover. Public Let’s Encryp
 issuance with standard Caddy challenges requires DNS to reach the new NLB;
 certificate issuance and browser HTTPS checks therefore remain cutover checks.
 The final documentation migration, exact-prefix OCI-to-B2 copy and manual upload
-runbook are separate checkpoints before merging the branch.
+runbook are separate checkpoints before merging the branch. The legacy default-branch
+source-deployment workflow must be removed on this branch before merge so cutover
+cannot trigger an old-source deployment. Temporary Bastion validation access has
+expired; no permanent SSH key was installed.
 
 References: [GitHub native ARM64 runners](https://github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/),
 [GitHub Container registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry),
@@ -111,7 +117,8 @@ References: [GitHub native ARM64 runners](https://github.blog/changelog/2025-08-
 ## Next checkpoint: library compatibility and transfer
 
 Read-only source inventory found 12,061 objects totaling 217,956,271,191 bytes
-(about 218 GB), including seven HLS master playlists and 30 standalone MP4 files.
+(about 218 GB), including seven HLS master playlists and 30 standalone MP4 files. None of those
+MP4 filenames has a matching HLS collection basename.
 The current migrated catalog supports HLS; MP4 playback must be implemented and
 validated before library migration or cutover. Preserve every filename and prefix.
 No source movie objects have been copied or modified. The B2 transfer and manual
