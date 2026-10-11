@@ -1,38 +1,14 @@
 {% extends "base.html" %}
-
+{% block title %}Device sign-in · Home Movies{% endblock %}
 {% block content %}
-<div class="columns is-multiline">
-
-    <div class="column is-4">
-        <h3 class="title">Remote Device Authentication</h3>
-        <div class="box">
-            {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <div class="notification is-danger">
-                    {{ messages[0] }}
-                </div>
-            {% endif %}
-            {% endwith %}
-            <form method="POST" action="/authenticate">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <div class="field">
-                    <div class="control">
-                        <input class="input is-large" type="username" name="username" placeholder="Your Username" autofocus="">
-                    </div>
-                </div>
-
-                <div class="field">
-                    <div class="control">
-                        <input class="input is-large" type="password" name="password" placeholder="Your Password">
-                    </div>
-                </div>
-
-                <input type="hidden" id="session_id" name="session_id" value="{{session_id}}">
-
-                <button class="button is-block is-info is-large is-fullwidth">Login</button>
-            </form>
-        </div>
-    </div>
-</div>
-
+<main class="page auth-page">
+  <div class="login-intro"><p class="eyebrow">Mobile login</p><h1>Sign in on your viewing device.</h1><p class="lede">Enter your credentials to approve the device that displayed the QR code.</p></div>
+  <section class="password-panel">
+    {% include '_messages.html' %}
+    <form method="POST" action="{{ url_for('authenticate') }}">
+      <input type="hidden" id="session_id" name="session_id" value="{{ session_id }}">
+      {% include '_login_fields.html' %}
+    </form>
+  </section>
+</main>
 {% endblock %}

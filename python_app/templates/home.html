@@ -1,39 +1,21 @@
 {% extends 'base.html' %}
- 
 {% block content %}
-        {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            <div class="notification is-danger">
-                {{ messages[0] }}
-            </div>
-        {% endif %}
-        {% endwith %}
-
-  
-    <div class="tabs is-toggle">
-      <ul>
-      {% for section in sections %}
-        {% if section == session["active_tab"] %}
-          <li class="is-active">
-        {% else %}
-          <li>
-        {% endif %}
-        <a href="{{ url_for('home', tab=section) }}">
-          <span>{{ section }}</span>
-        </a>
-      </li>
-      {% endfor %}  
-    </ul>
-  </div>
-    <nav class="panel">
-    {% for section_object in section_objects %}
-      <a class="panel-block" href="{{ url_for('detail', name=section_object.name) }}">
-        <span class="panel-icon">
-          <i class="fas fa-book" aria-hidden="true"></i>
-        </span>
-        {{ section_object.display_name }}
-      </a>
-    {% endfor %} 
+<main class="page">
+  {% include '_messages.html' %}
+  <p class="eyebrow">Your family library</p><h1>Moments worth revisiting.</h1><p class="lede">Pick a collection, then settle in.</p>
+  {% if sections %}
+  <nav class="tabs" aria-label="Movie collections">
+    {% for section in sections %}<a href="{{ url_for('home', tab=section) }}"{% if section == session['active_tab'] %} class="active" aria-current="page"{% endif %}>{{ section }}</a>{% endfor %}
   </nav>
-
+  <div class="library-label"><span>{{ session['active_tab'] }}</span><span>{{ section_objects|length }} {{ 'movie' if section_objects|length == 1 else 'movies' }}</span></div>
+  <div class="movies">
+    {% for section_object in section_objects %}
+    <a class="movie" href="{{ url_for('detail', name=section_object.name) }}">
+      <span class="movie-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m9 6 10 6-10 6z"/></svg></span>
+      <span class="movie-title">{{ section_object.display_name }}</span><span class="movie-end" aria-hidden="true"><span>Watch movie</span>›</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}<div class="empty-state" style="margin-top:32px">No movies are available yet.</div>{% endif %}
+</main>
 {% endblock %}

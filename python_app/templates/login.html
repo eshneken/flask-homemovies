@@ -1,45 +1,21 @@
 {% extends "base.html" %}
-
+{% block title %}Sign in · Home Movies{% endblock %}
 {% block content %}
-<div class="columns is-multiline">
-
-    <div class="column is-4 is-half">
-        <h3 class="title">Web Login</h3>
-        <div class="box">
-            {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <div class="notification is-danger">
-                    {{ messages[0] }}
-                </div>
-            {% endif %}
-            {% endwith %}
-            <form method="POST" action="/login">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <div class="field">
-                    <div class="control">
-                        <input class="input is-large" type="username" name="username" placeholder="Your Username" autofocus="">
-                    </div>
-                </div>
-
-                <div class="field">
-                    <div class="control">
-                        <input class="input is-large" type="password" name="password" placeholder="Your Password">
-                    </div>
-                </div>
-                <button class="button is-block is-info is-large is-fullwidth">Login</button>
-            </form>
-        </div>
-    </div>
-
-    <div class="column is-4 is-half">
-        <h3 class="title">Mobile Login</h3>
-            <div class="box is-flex is-justify-content-center">
-                <img src="{{ qrcode(target_url) }}">
-            </div>
-    </div>
-
-</div>
-
+<main class="page login-page">
+  <div class="login-intro"><p class="eyebrow">Welcome home</p><h1>Sign in to Home Movies.</h1><p class="lede">Your family memories, ready to watch.</p></div>
+  <div class="login-card">
+    <section class="password-panel" aria-labelledby="web-login">
+      <h2 id="web-login">Web login</h2><p class="panel-sub">Sign in with your username and password.</p>
+      {% include '_messages.html' %}
+      <form method="POST" action="{{ url_for('login') }}">{% include '_login_fields.html' %}</form>
+    </section>
+    <section class="qr-panel" aria-labelledby="mobile-login">
+      <h2 id="mobile-login">Mobile login</h2><p class="panel-sub">Scan with your phone to sign in on this device.</p>
+      <div class="qr-frame"><img src="{{ qrcode(target_url) }}" alt="Scan to sign in on this device" width="174" height="174"></div>
+      <p class="qr-note">Complete sign-in on your phone.<br>This page will update automatically.</p>
+    </section>
+  </div>
+</main>
 <script>
     function checkAuth() {
         // Perform an XHR request to check authentication
@@ -57,5 +33,4 @@
     // Periodically check for async auth
     setInterval(checkAuth, 5000);
 </script>
-
 {% endblock %}

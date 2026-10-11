@@ -1,57 +1,24 @@
 {% extends 'base.html' %}
- 
+{% block title %}{{ video_name }} · Home Movies{% endblock %}
 {% block content %}
-  <div class="top-pad">
-    <div class="container">
-      <div class="columns">
-        <div class="column is-three-quarters">
-          <h1 class="title">{{ video_name }}</h1>
-        </div>
-        <div class="column">
-          <button class="button is-primary is-pulled-right" id="modalButton">Share Video</button>
-        </div>
-      </div>
-      <div class="columns">
-        <div class="column is-full">
-          <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
-          <video id="player" class="video-js vjs-default-skin vjs-fluid" controls preload>
-            <source src="{{ par_url }}" type="{{ encoding_type }}">
-          </video>
-        </div>
-      </div>
+<main class="page">
+  <a class="back" href="{{ url_for('home') }}"><span aria-hidden="true">←</span> Back to library</a>
+  <div class="player-heading"><div><p class="eyebrow">Home Movies</p><h1>{{ video_name }}</h1></div><button class="primary" id="modalButton">Share Video</button></div>
+  {% include '_player.html' %}
+  <div class="modal" id="myModal">
+    <div class="modal-background"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="share-title">
+      <header class="modal-card-head"><p class="modal-card-title" id="share-title">Shareable Video Link</p><button class="delete" aria-label="Close" id="closeModal">×</button></header>
+      <section class="modal-card-body"><div class="share-controls"><input class="share-input" type="text" id="urlInput" value="" readonly aria-label="Shareable video link"><button class="primary" id="copyButton">Copy to Clipboard</button></div></section>
     </div>
-
-    <!-- video player scripts  -->
-    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-    <script>
+  </div>
+</main>
+<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+<script>
         var player = videojs('player', {fluid: true, enableSmoothSeeking: true, disablePictureInPicture: true});
         player.play();
     </script>
-
-    <!-- Share button html -->
-    <div class="modal" id="myModal">
-      <div class="modal-background"></div>
-      <div class="modal-card" style="width: 60%;">
-        <header class="modal-card-head">
-          <p class="modal-card-title">Shareable Video Link</p>
-          <button class="delete" aria-label="close" id="closeModal"></button>
-        </header>
-        <section class="modal-card-body">
-          <!-- Modal content: URL and copy button -->
-          <div class="field has-addons">
-            <div class="control is-expanded">
-              <input class="input is-static" type="text" id="urlInput" value="http://example.com" readonly>
-            </div>
-            <div class="control">
-              <button class="button is-info" id="copyButton">Copy to Clipboard</button>
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-
-    <!-- share button scripts -->
-    <script>
+<script>
        
 
       document.addEventListener('DOMContentLoaded', function () {
@@ -111,6 +78,4 @@
         copyButton.addEventListener('click', copyURL);
       });
     </script>
-
-  </div>
 {% endblock %}
