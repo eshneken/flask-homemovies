@@ -25,6 +25,7 @@ METADATA = dict(vault_ocid='test-vault', vault_key_ocid='test-key', runtime_dyna
 
 class ApplicationInfrastructureTests(unittest.TestCase):
     def test_client_reads_ephemeral_profile(self):
+        """Verify client reads ephemeral profile."""
         with tempfile.TemporaryDirectory() as root:
             key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
             key_file, token_file = Path(root) / 'key', Path(root) / 'token'
@@ -36,6 +37,7 @@ class ApplicationInfrastructureTests(unittest.TestCase):
                 self.assertEqual(signer.call_args.args[0], 'test-token')
 
     def test_plan_is_read_only_and_apply_uses_saved_plan_and_private_outputs(self):
+        """Verify plan is read only and apply uses saved plan and private outputs."""
         for operation in ('plan', 'apply'):
             with tempfile.TemporaryDirectory() as temporary:
                 root, work = Path(temporary) / 'source', Path(temporary) / 'work'
@@ -47,6 +49,7 @@ class ApplicationInfrastructureTests(unittest.TestCase):
                 storage.get_namespace.return_value.data = 'test-namespace'
                 calls = []
                 def terraform(module, args, env):
+                    """Simulate Terraform outputs and state transitions without provisioning resources."""
                     calls.append((module, args, env))
                     if args[:2] == ['show', '-json']:
                         return json.dumps({'resource_changes': [{'mode': 'managed', 'change': {'actions': ['create']}}]}).encode()
@@ -77,6 +80,7 @@ class ApplicationInfrastructureTests(unittest.TestCase):
                     self.assertEqual(json.loads(saved.args[3])['compartment_ocid'], 'test-compartment')
 
     def test_destination_and_foundation_mismatches_prevent_terraform(self):
+        """Verify destination and foundation mismatches prevent terraform."""
         for failure in ('name', 'bucket', 'metadata'):
             identity, storage = Mock(), Mock()
             identity.get_compartment.return_value.data = NS(name='other' if failure == 'name' else 'test-home', lifecycle_state='ACTIVE')
@@ -91,6 +95,7 @@ class ApplicationInfrastructureTests(unittest.TestCase):
             terraform.assert_not_called()
 
     def test_main_guards_cleanup_and_sanitized_failure(self):
+        """Verify main guards cleanup and sanitized failure."""
         with tempfile.TemporaryDirectory() as root:
             env = dict(ENV, RUNNER_TEMP=root, GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='github-hosted',
                        HM_GITHUB_ENVIRONMENT='homemovies-infrastructure', ENABLE_HOME_MOVIES_APPLICATION_INFRA='true',

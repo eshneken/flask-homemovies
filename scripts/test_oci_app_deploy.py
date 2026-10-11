@@ -17,6 +17,7 @@ ENV = dict(OCI_INSTANCE_OCID='test-instance', OCI_COMPARTMENT_OCID='test-compart
 
 class RunCommandTests(unittest.TestCase):
     def clients(self):
+        """Return mocked destination compute and instance-agent clients."""
         compute, agent = Mock(), Mock()
         compute.get_instance.return_value.data = NS(compartment_id='test-compartment', lifecycle_state='RUNNING')
         agent.create_instance_agent_command.return_value.data = NS(id='test-command')
@@ -24,6 +25,7 @@ class RunCommandTests(unittest.TestCase):
         return compute, agent
 
     def test_digest_only_command_and_private_target(self):
+        """Verify digest only command and private target."""
         compute, agent = self.clients()
         with patch.object(release, 'mask'):
             release.deploy(ENV, compute, agent)
@@ -36,6 +38,7 @@ class RunCommandTests(unittest.TestCase):
         agent.get_instance_agent_command_execution.assert_called_once_with('test-command', 'test-instance')
 
     def test_wrong_target_and_unsafe_image_never_submit(self):
+        """Verify wrong target and unsafe image never submit."""
         for compartment, state, image in (('other', 'RUNNING', ENV['APP_IMAGE']),
                                           ('test-compartment', 'STOPPED', ENV['APP_IMAGE']),
                                           ('test-compartment', 'RUNNING', ENV['APP_IMAGE'] + ';id')):
@@ -46,6 +49,7 @@ class RunCommandTests(unittest.TestCase):
             agent.create_instance_agent_command.assert_not_called()
 
     def test_waits_for_delivery_and_reports_terminal_failures(self):
+        """Verify waits for delivery and reports terminal failures."""
         for state in ('SUCCEEDED', 'FAILED', 'TIMED_OUT', 'CANCELED'):
             compute, agent = self.clients()
             not_delivered = oci.exceptions.ServiceError(404, 'NotFound', {}, '<private-output>')
@@ -59,6 +63,7 @@ class RunCommandTests(unittest.TestCase):
                 self.assertEqual(sleep.call_count, 2)
 
     def test_permission_errors_and_timeout_are_not_success(self):
+        """Verify permission errors and timeout are not success."""
         compute, agent = self.clients()
         agent.get_instance_agent_command_execution.side_effect = oci.exceptions.ServiceError(403, 'NotAuthorized', {}, '<private-output>')
         with patch.object(release, 'mask'), self.assertRaises(oci.exceptions.ServiceError):
@@ -68,6 +73,7 @@ class RunCommandTests(unittest.TestCase):
             release.deploy(ENV, compute, agent)
 
     def test_initial_pull_and_late_result_can_exceed_eight_minutes(self):
+        """Verify initial pull and late result can exceed eight minutes."""
         compute, agent = self.clients()
         agent.get_instance_agent_command_execution.side_effect = [
             NS(data=NS(lifecycle_state=state)) for state in ('ACCEPTED', 'IN_PROGRESS', 'SUCCEEDED')]
@@ -77,6 +83,7 @@ class RunCommandTests(unittest.TestCase):
         self.assertEqual(agent.get_instance_agent_command_execution.call_count, 3)
 
     def test_main_requires_production_branch_and_sanitizes_sdk_failures(self):
+        """Verify main requires production branch and sanitizes sdk failures."""
         env = dict(ENV, GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='github-hosted',
                    HM_GITHUB_ENVIRONMENT='homemovies-production', GITHUB_EVENT_NAME='push', GITHUB_REF='refs/heads/test')
         for change in ({'HM_GITHUB_ENVIRONMENT': 'homemovies-infrastructure'}, {'GITHUB_EVENT_NAME': 'pull_request'}, {'GITHUB_REF': 'refs/tags/test'}):

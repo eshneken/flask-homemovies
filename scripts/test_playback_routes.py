@@ -19,6 +19,7 @@ from werkzeug.security import generate_password_hash
 
 class PlaybackTests(unittest.TestCase):
     def setUp(self):
+        """Create isolated fixtures for PlaybackTests."""
         self.directory = tempfile.TemporaryDirectory()
         self.now = 1000
         self.store = TokenStore(Path(self.directory.name) / 'tokens.sqlite', clock=lambda: self.now)
@@ -48,15 +49,18 @@ class PlaybackTests(unittest.TestCase):
         self.client = self.app.test_client()
 
     def tearDown(self):
+        """Release temporary fixtures after PlaybackTests."""
         self.directory.cleanup()
 
     def session_login(self, ttl=100):
+        """Issue a test session and install its token in the browser cookie."""
         token = self.store.issue('session', {}, ttl)
         with self.client.session_transaction() as s:
             s['login_token'] = token
         return token
 
     def prepare_mp4(self):
+        """Configure the fake repository to expose a standalone MP4."""
         entry = 'Year/Standalone é.mp4'
         self.repo.catalog.return_value = (self.entry, entry)
         self.api.session.list_file_names.return_value = {'files': [{'fileName': entry}]}
@@ -65,6 +69,7 @@ class PlaybackTests(unittest.TestCase):
         return entry
 
     def test_mp4_catalog_player_and_direct_b2_redirect(self):
+        """Verify mp4 catalog player and direct b2 redirect."""
         entry = self.prepare_mp4()
         self.session_login()
         self.assertIn('Standalone é', self.client.get('/?tab=Year').text)
@@ -80,6 +85,7 @@ class PlaybackTests(unittest.TestCase):
         self.repo.playlist.assert_not_called()
 
     def test_mp4_anonymous_wrong_share_invalid_share_and_expiry_denied(self):
+        """Verify mp4 anonymous wrong share invalid share and expiry denied."""
         entry = self.prepare_mp4()
         self.assertEqual(self.client.get('/mp4', query_string={'entry': entry}).status_code, 403)
         self.repo.grant.assert_not_called()
@@ -93,6 +99,7 @@ class PlaybackTests(unittest.TestCase):
         self.assertEqual(self.client.get('/mp4', query_string={'entry': entry, 'share': share}).status_code, 403)
 
     def test_mp4_scope_missing_catalog_upstream_failure_and_parent_revocation(self):
+        """Verify mp4 scope missing catalog upstream failure and parent revocation."""
         entry = self.prepare_mp4()
         token = self.session_login()
         self.assertEqual(self.client.get('/mp4', query_string={'entry': self.entry}).status_code, 403)
@@ -104,20 +111,24 @@ class PlaybackTests(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertNotIn('private upstream details', response.text)
         def revoke(name, expires):
+            """Revoke the parent during simulated B2 I/O to test the post-request check."""
             self.store.delete(token)
             return Mock(), Mock()
         self.repo.grant.side_effect = revoke
         self.assertEqual(self.client.get('/mp4', query_string={'entry': entry}).status_code, 403)
 
     def playlist_url(self, **kwargs):
+        """Build an application playlist URL with the requested test parameters."""
         return '/playlist', {'entry': self.entry, 'name': self.entry, **kwargs}
 
     def test_anonymous_playlist_denied_without_b2_request(self):
+        """Verify anonymous playlist denied without b2 request."""
         path, args = self.playlist_url()
         self.assertEqual(self.client.get(path, query_string=args).status_code, 403)
         self.repo.grant.assert_not_called()
 
     def test_master_child_and_direct_media_routes(self):
+        """Verify master child and direct media routes."""
         self.session_login()
         path, args = self.playlist_url()
         response = self.client.get(path, query_string=args)
@@ -130,6 +141,7 @@ class PlaybackTests(unittest.TestCase):
         self.assertIn('https://example.com/file/media/Example.hls/seg.ts?Authorization=', response.text)
 
     def test_session_expiry_boundary_enforced_without_cleanup(self):
+        """Verify session expiry boundary enforced without cleanup."""
         self.session_login(ttl=100)
         path, args = self.playlist_url()
         self.now = 1090
@@ -138,6 +150,7 @@ class PlaybackTests(unittest.TestCase):
         self.assertEqual(self.client.get(path, query_string=args).status_code, 403)
 
     def test_share_children_and_cross_movie_denial(self):
+        """Verify share children and cross movie denial."""
         token = self.store.issue('share', {'entry': self.entry}, 100)
         path, args = self.playlist_url(share=token)
         response = self.client.get(path, query_string=args)
@@ -150,11 +163,13 @@ class PlaybackTests(unittest.TestCase):
         self.assertEqual(self.client.get(child).status_code, 403)
 
     def test_invalid_share_does_not_fall_back_to_session(self):
+        """Verify invalid share does not fall back to session."""
         self.session_login()
         path, args = self.playlist_url(share='invalid')
         self.assertEqual(self.client.get(path, query_string=args).status_code, 403)
 
     def test_cross_prefix_and_traversal_denied(self):
+        """Verify cross prefix and traversal denied."""
         self.session_login()
         for name in ('Other.hls/output.m3u8', 'Example.hls/../Other.hls/output.m3u8', 'Example.hls-extra/output.m3u8'):
             with self.subTest(name=name):
@@ -162,8 +177,10 @@ class PlaybackTests(unittest.TestCase):
         self.repo.playlist.assert_not_called()
 
     def test_expiry_during_remote_io_denied(self):
+        """Verify expiry during remote io denied."""
         self.session_login(ttl=100)
         def slow_playlist(*args):
+            """Advance the fake clock during playlist I/O to test expiry enforcement."""
             self.now = 1100
             return '#EXTM3U\nseg.ts\n'
         self.repo.playlist.side_effect = slow_playlist
@@ -171,6 +188,7 @@ class PlaybackTests(unittest.TestCase):
         self.assertEqual(self.client.get(path, query_string=args).status_code, 403)
 
     def test_csrf_and_login_and_logout(self):
+        """Verify csrf and login and logout."""
         self.client.get('/login')
         with self.client.session_transaction() as s:
             csrf = s['csrf']
@@ -184,11 +202,13 @@ class PlaybackTests(unittest.TestCase):
         self.assertIsNone(self.store.get(token, 'session'))
 
     def test_empty_library_renders(self):
+        """Verify empty library renders."""
         self.session_login()
         self.repo.catalog.return_value = ()
         self.assertEqual(self.client.get('/').status_code, 200)
 
     def test_qr_approval_cannot_be_consumed_from_other_browser(self):
+        """Verify qr approval cannot be consumed from other browser."""
         self.client.get('/login')
         with self.client.session_transaction() as s:
             token, viewer_csrf = s['qr_token'], s['csrf']
@@ -205,9 +225,11 @@ class PlaybackTests(unittest.TestCase):
         self.assertIsNone(self.store.get(token, 'qr'))
 
     def test_untrusted_host_rejected(self):
+        """Verify untrusted host rejected."""
         self.assertEqual(self.client.get('/health', headers={'Host': 'example.invalid'}).status_code, 400)
 
     def test_health_login_redirect_and_invalid_login(self):
+        """Verify health login redirect and invalid login."""
         self.assertEqual(self.client.get('/health').text, 'ok')
         self.assertEqual(self.client.get('/').status_code, 302)
         self.client.get('/login')
@@ -217,6 +239,7 @@ class PlaybackTests(unittest.TestCase):
             'password': '<incorrect>', 'csrf_token': csrf}).status_code, 401)
 
     def test_library_sections_and_repository_failure(self):
+        """Verify library sections and repository failure."""
         self.session_login()
         self.repo.catalog.return_value = ('Year/Example.hls/output.m3u8',)
         page = self.client.get('/')
@@ -227,6 +250,7 @@ class PlaybackTests(unittest.TestCase):
         self.assertEqual(self.client.get('/').status_code, 503)
 
     def test_movie_catalog_selection_and_share_creation(self):
+        """Verify movie catalog selection and share creation."""
         self.session_login()
         self.assertEqual(self.client.get('/movie', query_string={'name': self.entry}).status_code, 200)
         self.assertEqual(self.client.get('/movie', query_string={'name': 'Unknown.hls/output.m3u8'}).status_code, 404)
@@ -244,6 +268,7 @@ class PlaybackTests(unittest.TestCase):
         self.assertEqual(guest.get('/shared', query_string={'auth_code': 'invalid'}).status_code, 403)
 
     def test_full_database_denies_login_and_media_errors_are_sanitized(self):
+        """Verify full database denies login and media errors are sanitized."""
         from unittest.mock import patch
         with patch.object(self.store, 'issue', side_effect=sqlite3.OperationalError('database is full')):
             self.assertEqual(self.client.get('/login').status_code, 503)
@@ -259,6 +284,7 @@ class PlaybackTests(unittest.TestCase):
                 self.assertNotIn('private-detail', response.text)
 
     def test_qr_revisit_removes_old_challenge_and_invalid_approval_denied(self):
+        """Verify qr revisit removes old challenge and invalid approval denied."""
         self.client.get('/login')
         with self.client.session_transaction() as s:
             old = s['qr_token']
@@ -271,6 +297,7 @@ class PlaybackTests(unittest.TestCase):
             'username': 'example-viewer', 'password': '<incorrect>', 'csrf_token': csrf}).status_code, 403)
 
     def test_repeat_login_revokes_previous_session(self):
+        """Verify repeat login revokes previous session."""
         old = self.session_login()
         with self.client.session_transaction() as s:
             s['csrf'] = '<test-csrf>'
@@ -279,6 +306,7 @@ class PlaybackTests(unittest.TestCase):
         self.assertIsNone(self.store.get(old, 'session'))
 
     def test_configuration_rejects_weak_secret_and_non_https_production_origin(self):
+        """Verify configuration rejects weak secret and non https production origin."""
         base = {'SECRET_KEY': '<test-only>' * 6, 'PUBLIC_ORIGIN': 'http://127.0.0.1:5055'}
         for change in ({'SECRET_KEY': '<short>'}, {'PUBLIC_ORIGIN': 'http://example.com'},
                        {'PUBLIC_ORIGIN': 'https://example.com/path'}):
@@ -288,15 +316,18 @@ class PlaybackTests(unittest.TestCase):
 
 class TokenTests(unittest.TestCase):
     def setUp(self):
+        """Create isolated fixtures for TokenTests."""
         self.directory = tempfile.TemporaryDirectory()
         self.path = Path(self.directory.name) / 'tokens.sqlite'
         self.now = 1000
         self.store = TokenStore(self.path, clock=lambda: self.now)
 
     def tearDown(self):
+        """Release temporary fixtures after TokenTests."""
         self.directory.cleanup()
 
     def test_expiry_survives_restart_and_does_not_depend_on_cleanup(self):
+        """Verify expiry survives restart and does not depend on cleanup."""
         token = self.store.issue('share', {'entry': 'Example.hls/output.m3u8'}, 100)
         self.now = 1099.999
         self.assertIsNotNone(self.store.get(token, 'share'))
@@ -310,6 +341,7 @@ class TokenTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT COUNT(*) FROM tokens').fetchone()[0], 0)
 
     def test_qr_approval_and_polling_never_extend_expiry(self):
+        """Verify qr approval and polling never extend expiry."""
         token = self.store.issue('qr', {'owner': 'bound-browser', 'approved': False}, 900)
         before = self.store.get(token, 'qr')['expires_at']
         self.now = 1800
@@ -320,6 +352,7 @@ class TokenTests(unittest.TestCase):
         self.assertFalse(self.store.consume_qr(token, 'bound-browser'))
 
     def test_qr_consumption_atomic_and_single_use(self):
+        """Verify qr consumption atomic and single use."""
         token = self.store.issue('qr', {'owner': 'bound-browser', 'approved': False}, 900)
         self.store.approve_qr(token)
         with ThreadPoolExecutor(max_workers=4) as executor:
@@ -327,6 +360,7 @@ class TokenTests(unittest.TestCase):
         self.assertEqual(sum(winners), 1)
 
     def test_capacity_enforced_and_cleanup_reclaims_space(self):
+        """Verify capacity enforced and cleanup reclaims space."""
         store = TokenStore(self.path, clock=lambda: self.now, max_bytes=64 * 1024)
         with self.assertRaises(sqlite3.OperationalError):
             for _ in range(100):

@@ -15,6 +15,7 @@ from oci_wif import WifError, private_write
 
 
 def claims(token):
+    """Decode session-token claims for local identity checks; this does not verify a signature."""
     try:
         part = token.split('.')[1]
         body = json.loads(base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
@@ -26,6 +27,11 @@ def claims(token):
 
 
 def mint(settings, now, config_loader=oci.config.from_file, client_factory=oci.identity_data_plane.DataplaneClient):
+    """Create a one-hour OCI session bound to a new key in the destination tenancy.
+
+    Verify the operator profile and issued identity without copying the
+    registered API private key into the returned bootstrap bundle.
+    """
     config = config_loader(profile_name=settings.get('oci_profile', 'HOMEMOVIES_OPERATOR'))
     if config['tenancy'] != settings['tenancy_ocid'] or config['region'] != settings['region']:
         raise WifError('Destination profile and bootstrap settings differ.')
@@ -49,6 +55,7 @@ def mint(settings, now, config_loader=oci.config.from_file, client_factory=oci.i
 
 
 def main():
+    """Read private bootstrap settings and write a new owner-only credential bundle."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--settings', required=True)
     parser.add_argument('--output', required=True)

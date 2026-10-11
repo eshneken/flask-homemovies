@@ -10,6 +10,7 @@ from b2_media import MediaAccessError, media_kind
 
 
 def validate_names(names):
+    """Reject unsafe names and MP4 prefix collisions; return the standalone MP4 count."""
     names = sorted(set(names))
     mp4_count = 0
     for name in names:
@@ -25,6 +26,7 @@ def validate_names(names):
 
 
 def candidate_names(source, prefix):
+    """Map a local file or directory to exact prospective B2 object names."""
     if source.is_file():
         return [prefix]
     if not source.is_dir() or not prefix.endswith('/'):
@@ -34,6 +36,7 @@ def candidate_names(source, prefix):
 
 
 def main(argv=None):
+    """Check an existing inventory plus proposed uploads without printing private names."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--existing', type=Path, required=True)
     parser.add_argument('--source', type=Path, required=True)

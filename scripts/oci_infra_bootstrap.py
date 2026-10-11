@@ -21,6 +21,7 @@ METADATA_KEY = 'bootstrap/outputs.json'
 
 
 def validate_bundle(settings, bundle, now):
+    """Check bootstrap identity, remaining lifetime and private-key format before use."""
     if any(not isinstance(settings.get(k), str) or not settings[k] or any(c in settings[k] for c in '\r\n\0') for k in REQUIRED):
         raise WifError('Bootstrap settings are incomplete.')
     token = bundle.get('token')
@@ -34,6 +35,7 @@ def validate_bundle(settings, bundle, now):
 
 
 def terraform(module, args, env):
+    """Run Terraform with captured output so credentials stay out of public logs."""
     # Never stream Terraform's raw output, which can include IDs/state/hostnames.
     result = subprocess.run(['terraform', '-chdir=' + str(module), *args], env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600)
@@ -43,6 +45,7 @@ def terraform(module, args, env):
 
 
 def summarize(body):
+    """Count planned managed-resource changes and reject deletes, including replacements."""
     result = {'creates': 0, 'updates': 0, 'deletes': 0, 'imports': 0}
     for resource in body.get('resource_changes', []):
         if resource.get('mode') == 'data':
@@ -57,11 +60,13 @@ def summarize(body):
 
 
 def plan_module(module, env):
+    """Save a Terraform plan and return its validated aggregate change counts."""
     terraform(module, ['plan', '-input=false', '-no-color', '-out=review.tfplan'], env)
     return summarize(json.loads(terraform(module, ['show', '-json', 'review.tfplan'], env)))
 
 
 def local_backend(module):
+    """Use local state while creating the initial remote state bucket."""
     for path in module.glob('*.tf'):
         text = path.read_text()
         if 'backend "oci" {}' in text:
@@ -69,6 +74,7 @@ def local_backend(module):
 
 
 def remote_backend(module, settings, namespace, env):
+    """Configure the OCI backend using an ephemeral profile, without embedding credentials."""
     for path in module.glob('*.tf'):
         text = path.read_text()
         if 'backend "local" {}' in text:
@@ -81,6 +87,7 @@ def remote_backend(module, settings, namespace, env):
 
 
 def bucket_exists(storage, namespace, settings):
+    """Check state-bucket identity, privacy and versioning; return false only for absence."""
     try:
         bucket = storage.get_bucket(namespace, settings['state_bucket_name']).data
         if (bucket.compartment_id != settings['compartment_ocid'] or bucket.public_access_type != 'NoPublicAccess'
@@ -94,6 +101,7 @@ def bucket_exists(storage, namespace, settings):
 
 
 def read_metadata(storage, namespace, settings):
+    """Read private foundation outputs and verify their destination compartment."""
     try:
         response = storage.get_object(namespace, settings['state_bucket_name'], METADATA_KEY)
         body = json.loads(response.data.content)
@@ -107,6 +115,11 @@ def read_metadata(storage, namespace, settings):
 
 
 def run(settings, bundle, operation, root, directory, config_path, env):
+    """Bootstrap foundation and IAM resources with durable state and resumable ownership handoff.
+
+    Establish remote state before the remaining resources. Persist the runtime
+    group identity before removing its bootstrap state ownership.
+    """
     validate_bundle(settings, bundle, int(time.time()))
     for value in [*settings.values(), *bundle.values()]:
         if isinstance(value, str):
@@ -183,6 +196,7 @@ def run(settings, bundle, operation, root, directory, config_path, env):
 
 
 def main():
+    """Require an opted-in hosted bootstrap job and remove temporary credentials on exit."""
     directory = None
     config_path = Path.home() / '.oci' / 'config'
     try:

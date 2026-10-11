@@ -11,6 +11,7 @@ from vm_deploy import validate_image
 
 
 def deploy(env, compute, agent):
+    """Validate the destination VM and image digest, then await the OCI agent deployment result."""
     instance_id = require(env, 'OCI_INSTANCE_OCID')
     compartment_id = require(env, 'OCI_COMPARTMENT_OCID')
     mask(instance_id)
@@ -51,6 +52,7 @@ def deploy(env, compute, agent):
 
 
 def main():
+    """Run a production branch deployment on a hosted GitHub runner with sanitized failures."""
     try:
         env = os.environ
         hosted_runner(env)

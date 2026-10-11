@@ -21,32 +21,31 @@
 <script>
        
 
+      // Bind sharing controls once the rendered player page is available.
       document.addEventListener('DOMContentLoaded', function () {
-        // Get references to modal and modal trigger elements
         var modalButton = document.getElementById('modalButton');
         var closeModalButtons = document.querySelectorAll('#closeModal, .modal-background');
         var copyButton = document.getElementById('copyButton');
         var urlInput = document.getElementById('urlInput');
 
-        // Function to open the modal
+        /** Request a fresh share token and display the sharing dialog. */
         function openModal() {
           getShareURL();
           document.getElementById('myModal').classList.add('is-active');
         }
 
-        // Function to close the modal
+        /** Hide the dialog; the issued share token keeps its server-side expiry. */
         function closeModal() {
           document.getElementById('myModal').classList.remove('is-active');
         }
 
-        // Function to copy URL to clipboard
+        /** Select and copy the displayed bearer link for the viewer to share. */
         function copyURL() {
           urlInput.select();
           document.execCommand('copy');
-          //alert('URL copied to clipboard!');
         }
 
-        // Function to get a sharing URL from the server
+        /** Create a 48-hour share link for this exact movie using the login and CSRF token. */
         function getShareURL() {
           const data = {name: {{ full_name|tojson }} };
           fetch("/share_url",
@@ -58,6 +57,7 @@
                 },
               body: JSON.stringify(data)
             })
+              // Read the private URL into the dialog without logging the token.
               .then(response => response.json())
               .then(data => {
                   if (data.url) {
@@ -66,15 +66,13 @@
               });
         }
 
-        // Event listener to open the modal when the button is clicked
         modalButton.addEventListener('click', openModal);
 
-        // Event listener to close the modal when the close button or modal background is clicked
+        // Both dismissal controls hide the same dialog.
         closeModalButtons.forEach(function (element) {
           element.addEventListener('click', closeModal);
         });
 
-        // Event listener to copy URL when the copy button is clicked
         copyButton.addEventListener('click', copyURL);
       });
     </script>

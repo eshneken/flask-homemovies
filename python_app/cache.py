@@ -10,6 +10,7 @@ from contextlib import contextmanager
 
 class TokenStore:
     def __init__(self, path, clock=time.time, max_bytes=32 * 1024 * 1024):
+        """Create an owner-only token database with an expiry index and a size cap."""
         self.path = str(path)
         self.clock = clock
         self.max_bytes = max_bytes
@@ -25,6 +26,11 @@ class TokenStore:
 
     @contextmanager
     def connect(self):
+        """Yield a transactional SQLite connection and always close it.
+
+        Reapply the page cap on every connection; SQLite does not persist this
+        setting. Commit on success and roll back if the caller raises.
+        """
         db = sqlite3.connect(self.path, timeout=2)
         try:
             db.execute('PRAGMA journal_mode=DELETE')
@@ -37,9 +43,11 @@ class TokenStore:
 
     @staticmethod
     def digest(token):
+        """Hash a bearer token so a database read does not reveal usable credentials."""
         return hashlib.sha256(token.encode()).hexdigest()
 
     def issue(self, kind, payload, ttl):
+        """Persist a random token hash and JSON payload with an absolute expiry deadline."""
         token = secrets.token_urlsafe(32)
         expiry = self.clock() + ttl
         with self.connect() as db:
@@ -48,18 +56,22 @@ class TokenStore:
         return token
 
     def get(self, token, kind):
+        """Return payload and deadline only for a matching, unexpired token kind."""
         if not isinstance(token, str) or len(token) > 200:
             return None
         with self.connect() as db:
+            # Expiry is part of authorization, independent of the cleanup thread.
             row = db.execute('SELECT payload, expires FROM tokens WHERE id=? AND kind=? AND expires>?',
                              (self.digest(token), kind, self.clock())).fetchone()
         return {'payload': json.loads(row[0]), 'expires_at': row[1]} if row else None
 
     def delete(self, token):
+        """Revoke a token immediately by deleting its stored hash."""
         with self.connect() as db:
             db.execute('DELETE FROM tokens WHERE id=?', (self.digest(token),))
 
     def approve_qr(self, token):
+        """Mark an unexpired QR challenge approved without extending its deadline."""
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT payload FROM tokens WHERE id=? AND kind=? AND expires>?',
@@ -68,10 +80,15 @@ class TokenStore:
                 return False
             payload = json.loads(row[0])
             payload['approved'] = True
+            # Approval changes only payload; polling and approval never renew TTL.
             db.execute('UPDATE tokens SET payload=? WHERE id=?', (json.dumps(payload), self.digest(token)))
             return True
 
     def consume_qr(self, token, owner):
+        """Atomically consume an approved QR challenge belonging to this browser.
+
+        BEGIN IMMEDIATE serializes competing pollers so approval is single use.
+        """
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT payload FROM tokens WHERE id=? AND kind=? AND expires>?',
@@ -85,6 +102,7 @@ class TokenStore:
             return True
 
     def cleanup(self):
+        """Delete expired tokens and incrementally reclaim free database pages."""
         with self.connect() as db:
             db.execute('DELETE FROM tokens WHERE expires<=?', (self.clock(),))
             db.execute('PRAGMA incremental_vacuum(64)')

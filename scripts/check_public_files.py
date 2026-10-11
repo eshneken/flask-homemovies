@@ -64,6 +64,7 @@ def check_file(path):
 
 
 def main():
+    """Scan tracked and non-ignored files, reporting locations without disclosing matched values."""
     root = Path(__file__).resolve().parents[1]
     tracked = subprocess.check_output(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],

@@ -12,6 +12,7 @@ from b2_media import MediaAccessError
 
 class RepositoryTests(unittest.TestCase):
     def setUp(self):
+        """Create isolated fixtures for RepositoryTests."""
         self.now = 1000
         self.api = Mock()
         self.api.account_info.get_allowed.return_value = {
@@ -22,12 +23,14 @@ class RepositoryTests(unittest.TestCase):
         self.repo = B2Repository(self.api, 'bucket', clock=lambda: self.now)
 
     def test_discovery_preserves_exact_names_and_excludes_segments(self):
+        """Verify discovery preserves exact names and excludes segments."""
         names = ['Year/Example é.hls/output.m3u8', 'Year/Example é.hls/segment.ts',
                  'Year/Standalone é.MP4', 'Year/Example é.hls/init.mp4']
         self.bucket.ls.return_value = [(SimpleNamespace(file_name=n), None) for n in names]
         self.assertEqual(self.repo.catalog(), (names[0], names[2]))
 
     def test_catalog_refreshes_after_five_minutes_without_returning_stale_on_failure(self):
+        """Verify catalog refreshes after five minutes without returning stale on failure."""
         self.bucket.ls.return_value = [(SimpleNamespace(file_name='Example.hls/output.m3u8'), None)]
         self.repo.catalog()
         self.now = 1299
@@ -39,6 +42,7 @@ class RepositoryTests(unittest.TestCase):
             self.repo.catalog()
 
     def test_small_playlist_range_ends_at_eof(self):
+        """Verify small playlist range ends at eof."""
         source = b'#EXTM3U\nsegment.ts\n'
         self.bucket.get_file_info_by_name.return_value = SimpleNamespace(size=len(source))
         download = Mock()
@@ -49,6 +53,7 @@ class RepositoryTests(unittest.TestCase):
             'Example.hls/output.m3u8', range_=(0, len(source) - 1))
 
     def test_large_and_empty_playlist_denied_before_download(self):
+        """Verify large and empty playlist denied before download."""
         for size in (0, 1024 * 1024 + 1):
             self.bucket.get_file_info_by_name.return_value = SimpleNamespace(size=size)
             with self.assertRaises(MediaAccessError):

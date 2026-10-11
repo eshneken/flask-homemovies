@@ -17,20 +17,21 @@
   </div>
 </main>
 <script>
+    /** Poll this browser's QR challenge; the server enforces ownership, expiry and single use. */
     function checkAuth() {
-        // Perform an XHR request to check authentication
         fetch('/check_auth', {method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-CSRF-Token': {{ csrf_token|tojson }}},
             body: JSON.stringify({session_id: {{ session_id|tojson }}})})
             .then(response => response.json())
             .then(data => {
+                // Successful polling establishes the login cookie before navigation.
                 if (data.is_authenticated) {
                     window.location.href = '/';
                 }
             });
     }
 
-    // Periodically check for async auth
+    // Polling never extends the challenge's 15-minute server-side deadline.
     setInterval(checkAuth, 5000);
 </script>
 {% endblock %}

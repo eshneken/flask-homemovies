@@ -11,6 +11,6 @@ source =
     check_mp4_prefixes
 
 [report]
-fail_under = 91
+fail_under = 95
 show_missing = True
 precision = 2

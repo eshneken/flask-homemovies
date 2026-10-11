@@ -20,7 +20,7 @@ jobs:
           persist-credentials: false
       - name: Check for private configuration and obvious credentials
         run: python3 scripts/check_public_files.py
-      - name: Run offline tests and require greater than 90 percent coverage
+      - name: Run offline tests and require at least 95 percent coverage
         run: |
           python3 -m venv .venv
           .venv/bin/python -m pip install -r scripts/requirements-test.txt
@@ -47,7 +47,7 @@ jobs:
               print('| --- | ---: |')
               print(f"| Statement coverage | {totals['percent_covered']:.2f}% |")
               print(f"| Covered statements | {totals['covered_lines']} / {totals['num_statements']} |")
-              print('| Required coverage | 91% |')
+              print('| Required coverage | 95% |')
           PYCODE
       - name: Upload coverage report
         if: always()

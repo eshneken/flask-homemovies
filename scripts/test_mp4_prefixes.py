@@ -10,16 +10,19 @@ from b2_media import MediaAccessError
 
 class PrefixInventoryTests(unittest.TestCase):
     def test_exact_replacement_unicode_case_and_hls_fragments(self):
+        """Verify exact replacement unicode case and hls fragments."""
         self.assertEqual(validate_names(['Year/é.MP4', 'Year/é.MP4', 'Other.mp4',
                                         'Other-extra.txt', 'Movie.hls/init.mp4']), 2)
 
     def test_non_catalog_sidecar_conflicts_and_unsafe_paths_rejected(self):
+        """Verify non catalog sidecar conflicts and unsafe paths rejected."""
         for names in (['Movie.mp4', 'Movie.mp4.notes'], ['Movie.mp4', 'Movie.mp4/secret'],
                       ['../bad.mp4'], ['bad\n.mp4']):
             with self.assertRaises(MediaAccessError):
                 validate_names(names)
 
     def test_combined_upload_inventory_and_sanitized_failure(self):
+        """Verify combined upload inventory and sanitized failure."""
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             existing = root / 'existing.json'

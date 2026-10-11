@@ -236,7 +236,7 @@ python scripts/check_public_files.py
 
 Tests live in `scripts/test_*.py`. GitHub runs them on every push and PR without
 cloud credentials; mocked B2/OCI clients cover authorization, expiry, repository
-behavior and infrastructure. Coverage must exceed 90 percent. ARM64 release jobs
+behavior and infrastructure. Coverage must be at least 95 percent. ARM64 release jobs
 also test before publishing. Live service tests are separate and use private
 ignored configuration; do not add real credentials to CI tests.
 

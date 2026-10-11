@@ -18,6 +18,11 @@ from cache import TokenStore
 
 
 def create_app(settings, repository, token_store=None, clock=time.time):
+    """Build Flask routes around private media access and expiring SQLite tokens.
+
+    Settings supply login credentials, origin and database path. The injected
+    repository and clock let tests exercise authorization without cloud access.
+    """
     app = Flask(__name__)
     if len(settings['SECRET_KEY']) < 32:
         raise ValueError('A persistent random session secret is required.')
@@ -34,22 +39,27 @@ def create_app(settings, repository, token_store=None, clock=time.time):
     QRcode(app)
 
     def csrf():
+        """Create or reuse the CSRF token associated with this browser session."""
         if 'csrf' not in session:
             session['csrf'] = secrets.token_urlsafe(32)
         return session['csrf']
 
     def login_record():
+        """Look up the current browser session and enforce its server-side deadline."""
         return store.get(session.get('login_token'), 'session')
 
     def require_login(view):
+        """Decorate a view with a live server-side session check."""
         @wraps(view)
         def wrapped(*args, **kwargs):
+            """Redirect unauthenticated callers before invoking the protected view."""
             if not login_record():
                 return redirect(url_for('login'))
             return view(*args, **kwargs)
         return wrapped
 
     def establish_login():
+        """Revoke the previous login, rotate browser state and issue a two-hour session."""
         old = session.get('login_token')
         if old:
             store.delete(old)
@@ -58,11 +68,13 @@ def create_app(settings, repository, token_store=None, clock=time.time):
         csrf()
 
     def valid_password():
+        """Check submitted credentials using constant-time username and hashed password checks."""
         return (secrets.compare_digest(request.form.get('username', '').encode(), settings['USERNAME'].encode())
                 and check_password_hash(settings['PASSWORD_HASH'], request.form.get('password', '')))
 
     @app.before_request
     def protect_posts():
+        """Reject POST requests without a CSRF token matching browser session state."""
         if request.method == 'POST':
             provided = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token', '')
             if not session.get('csrf') or not secrets.compare_digest(provided.encode(), session['csrf'].encode()):
@@ -70,6 +82,7 @@ def create_app(settings, repository, token_store=None, clock=time.time):
 
     @app.after_request
     def private_response(response):
+        """Prevent caching and referrer leakage of private pages and bearer URLs."""
         response.headers['Cache-Control'] = 'private, no-store'
         response.headers['Referrer-Policy'] = 'no-referrer'
         response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -77,19 +90,23 @@ def create_app(settings, repository, token_store=None, clock=time.time):
 
     @app.context_processor
     def context():
+        """Expose the browser CSRF token and current login state to templates."""
         return {'csrf_token': csrf(), 'current_user': SimpleNamespace(is_authenticated=bool(login_record()))}
 
     @app.errorhandler(sqlite3.Error)
     def database_unavailable(error):
+        """Return a sanitized service error when token storage is unavailable."""
         return 'Authentication temporarily unavailable.', 503
 
     @app.errorhandler(MediaAccessError)
     @app.errorhandler(UnsafeConfiguration)
     def invalid_media(error):
+        """Deny unsafe media requests without exposing B2 or configuration details."""
         return 'Unable to access this movie.', 403
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():
+        """Authenticate a password POST or render a fresh browser-owned QR challenge."""
         if request.method == 'POST':
             if not valid_password():
                 return 'Invalid login.', 401
@@ -106,6 +123,7 @@ def create_app(settings, repository, token_store=None, clock=time.time):
 
     @app.route('/authenticate', methods=['GET', 'POST'])
     def authenticate():
+        """Render the QR approval form or approve it after verifying credentials."""
         token = request.values.get('session_id', '')
         if not store.get(token, 'qr'):
             abort(403)
@@ -117,6 +135,7 @@ def create_app(settings, repository, token_store=None, clock=time.time):
 
     @app.route('/check_auth', methods=['POST'])
     def check_auth():
+        """Consume this browser's approved QR challenge and establish a login once."""
         token = (request.get_json(silent=True) or {}).get('session_id', '')
         approved = (isinstance(token, str) and token == session.get('qr_token')
                     and store.consume_qr(token, session.get('qr_owner', '')))
@@ -126,6 +145,7 @@ def create_app(settings, repository, token_store=None, clock=time.time):
 
     @app.route('/logout', methods=['POST'])
     def logout():
+        """Revoke the server-side login token and clear browser session state."""
         if session.get('login_token'):
             store.delete(session['login_token'])
         session.clear()
@@ -134,6 +154,7 @@ def create_app(settings, repository, token_store=None, clock=time.time):
     @app.route('/')
     @require_login
     def home():
+        """Render catalog entries grouped by folder, preserving exact object names."""
         try:
             names = repository.catalog()
         except Exception:
@@ -150,12 +171,14 @@ def create_app(settings, repository, token_store=None, clock=time.time):
         return render_template('home.html', sections=sections, section_objects=sections.get(tab, []))
 
     def valid_entry(name):
+        """Require an exact current catalog entry with a supported media type."""
         if not isinstance(name, str) or name not in repository.catalog():
             abort(404)
         media_kind(name)
         return name
 
     def player(entry, share=None):
+        """Render a movie player using authenticated playlist or MP4 application routes."""
         kind = media_kind(entry)
         url = url_for('playlist' if kind == 'hls' else 'mp4', name=entry, entry=entry,
                       **({'share': share} if share else {}))
@@ -166,17 +189,20 @@ def create_app(settings, repository, token_store=None, clock=time.time):
     @app.route('/movie')
     @require_login
     def detail():
+        """Render the selected catalog movie for a logged-in viewer."""
         return player(valid_entry(request.args.get('name')))
 
     @app.route('/share_url', methods=['POST'])
     @require_login
     def share_url():
+        """Issue a 48-hour share token scoped to exactly one catalog entry."""
         name = valid_entry((request.get_json(silent=True) or {}).get('name'))
         token = store.issue('share', {'entry': name}, 48 * 3600)
         return jsonify(url=settings['PUBLIC_ORIGIN'] + url_for('shared', auth_code=token))
 
     @app.route('/shared')
     def shared():
+        """Render a movie only while its share token is valid."""
         token = request.args.get('auth_code', '')
         record = store.get(token, 'share')
         if not record:
@@ -185,6 +211,10 @@ def create_app(settings, repository, token_store=None, clock=time.time):
 
     @app.route('/mp4')
     def mp4():
+        """Authorize one MP4, recheck the parent after B2 I/O and redirect to B2.
+
+        An explicit invalid share token never falls back to a logged-in session.
+        """
         share = request.args.get('share')
         entry = request.args.get('entry')
         parent = store.get(share, 'share') if share is not None else login_record()
@@ -206,6 +236,11 @@ def create_app(settings, repository, token_store=None, clock=time.time):
 
     @app.route('/playlist')
     def playlist():
+        """Authorize and rewrite an HLS playlist without proxying media bytes.
+
+        Child playlists retain application authorization; segments, keys and
+        other media use B2 grants bounded by the session or share deadline.
+        """
         share = request.args.get('share')
         entry = request.args.get('entry')
         # An explicitly supplied invalid share never falls back to a logged-in session.
@@ -239,10 +274,12 @@ def create_app(settings, repository, token_store=None, clock=time.time):
 
     @app.route('/health')
     def health():
+        """Report that the Flask process can respond without querying cloud dependencies."""
         return 'ok'
 
     if settings.get('START_CLEANUP', True):
         def cleanup_loop():
+            """Reap expired tokens every minute; request-time expiry remains authoritative."""
             while True:
                 time.sleep(60)
                 try:
