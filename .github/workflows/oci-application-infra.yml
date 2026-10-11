@@ -2,7 +2,7 @@ name: Home Movies application infrastructure
 on:
   workflow_dispatch:
   push:
-    branches: ['**']
+    branches: ['main']
     paths: ['infra/application/**', 'scripts/oci_application_infra.py', '.github/workflows/oci-application-infra.yml']
 permissions:
   contents: read
@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   infrastructure:
-    if: vars.ENABLE_HOME_MOVIES_APPLICATION_INFRA == 'true' && startsWith(github.ref, 'refs/heads/')
+    if: vars.ENABLE_HOME_MOVIES_APPLICATION_INFRA == 'true' && github.ref == 'refs/heads/main'
     environment: homemovies-infrastructure
     runs-on: ubuntu-latest
     timeout-minutes: 30

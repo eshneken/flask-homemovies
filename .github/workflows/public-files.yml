@@ -3,12 +3,16 @@ name: Application tests and public-file checks
 on:
   pull_request:
   push:
+  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
   public-files:
+    name: Unit tests and coverage
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -22,8 +26,43 @@ jobs:
           .venv/bin/python -m pip install -r scripts/requirements-test.txt
           .venv/bin/python -m coverage run -m unittest discover -s scripts -p 'test_*.py'
           .venv/bin/python -m coverage report
+      - name: Generate coverage reports
+        if: always()
+        run: |
+          if [ -f .coverage ]; then
+            .venv/bin/python -m coverage json --fail-under=0 -o coverage.json
+            .venv/bin/python -m coverage html --fail-under=0
+          fi
+      - name: Add coverage summary
+        if: always()
+        run: |
+          python3 - <<'PYCODE' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          path = Path('coverage.json')
+          if path.exists():
+              totals = json.loads(path.read_text())['totals']
+              print('### Test coverage')
+              print('| Metric | Result |')
+              print('| --- | ---: |')
+              print(f"| Statement coverage | {totals['percent_covered']:.2f}% |")
+              print(f"| Covered statements | {totals['covered_lines']} / {totals['num_statements']} |")
+              print('| Required coverage | 91% |')
+          PYCODE
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: coverage-${{ github.sha }}
+          path: |
+            coverage.json
+            htmlcov/
+          if-no-files-found: warn
+          retention-days: 30
 
   terraform:
+    name: Terraform validation and tests
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683

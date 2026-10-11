@@ -10,10 +10,10 @@ addresses or credentials in these files.
 
 | Workflow file | Trigger and purpose | Cloud credentials |
 | --- | --- | --- |
-| `public-files.yml` | Every push and PR: public-file check, unit tests, >90% coverage, Terraform validation/mock tests | None |
+| `public-files.yml` | Every push/PR, manual runs and release calls: privacy/unit tests, ≥91% coverage, Terraform validation/mock tests | None |
 | `oci-wif-verify.yml` | Enabled branch pushes/manual runs: verify the production federation identity | Short-lived OCI session via WIF |
-| `oci-application-infra.yml` | Enabled branch pushes affecting infrastructure/helpers, or manual runs: Terraform plan/apply | Infrastructure WIF identity |
-| `oci-app-deploy.yml` | Enabled branch pushes affecting app/helpers, or manual runs: ARM64 build, GHCR publish, VM deployment | GitHub job token for GHCR; deployment WIF identity for OCI |
+| `oci-application-infra.yml` | Enabled `main` pushes affecting infrastructure/helpers, or manual runs on `main`: Terraform plan/apply | Infrastructure WIF identity |
+| `oci-app-deploy.yml` | Enabled `main` pushes/manual runs on `main`: shared checks, ARM64 tests/build, GHCR publish, VM deployment | GitHub job token for GHCR; deployment WIF identity for OCI |
 | `oci-infra-bootstrap.yml` | Explicitly enabled initial setup: establish IAM/state/Vault foundation | Temporary operator bootstrap session; disable outside setup |
 
 Terraform and builds run on GitHub-hosted runners. The image build runs on an
@@ -53,9 +53,11 @@ principal. Do not grant the routine client identity-domain administrator authori
 A domain can share an existing GitHub issuer trust. Extend its mappings without
 replacing another project's mappings. Bind trust to the expected repository,
 environment and audience. WIF is environment-bound, not limited to one branch:
-routine workflows accept repository branch pushes and branch manual runs, while
-PR/tag contexts are rejected. Anyone authorized to push deployable code is trusted
-with deployment capability; manage repository write access accordingly.
+the verification workflow accepts repository branch pushes and branch manual runs,
+while PR/tag contexts are rejected. Production release and application infrastructure
+workflows additionally require `main`. Keep this distinction: the identity trust
+can support branches without every branch being allowed to deploy. Protect repository
+write access, since trusted workflow changes can use the available WIF identities.
 
 The runner requests a GitHub OIDC token with `id-token: write`, generates an
 ephemeral signing key and exchanges the token through the OCI identity-domain
@@ -67,7 +69,8 @@ removed when the job finishes. No long-lived OCI API signing key belongs in CI.
 
 In **Settings → Environments**, create `homemovies-infrastructure` and
 `homemovies-production`. Use **No restriction** for deployment branches/tags to
-allow all repository branches; workflow checks still reject tag/PR deployments.
+allow all repository branches for WIF verification; release/infrastructure job
+conditions restrict deployment to `main` and reject tag/PR deployments.
 These environments currently have no required-reviewer gates.
 
 Set these variables in **both** environments, with each environment's mapped
@@ -183,8 +186,8 @@ SQLite container path and read-only B2 key/bucket ID. Do not add those settings 
 GitHub secrets or Terraform variables. Update public DNS to the NLB and keep the
 B2 bucket private with CORS for the exact public origin.
 
-Enable image builds and deployments, then push an application change or run the
-release workflow manually. GHCR publication uses the job's short-lived
+Enable image builds and deployments, then merge a tested PR into `main` or run
+the release workflow manually on `main`. GHCR publication uses the job's short-lived
 `GITHUB_TOKEN`, with `packages: write`; the VM anonymously pulls the software-only
 public image. The deployment input is a digest from this repository, never a
 mutable `latest` tag or arbitrary registry. Runtime settings are reloaded on
@@ -197,6 +200,26 @@ push trigger or rerun an existing run. After merging, select the desired branch
 in the manual run menu. CI checks remain active on every push/PR regardless of
 cloud opt-in flags. Unit tests use mocks and temporary SQLite files, not B2/OCI
 credentials or GitHub secrets; `.coveragerc` requires at least 91% coverage.
+
+## Required checks and release gating
+
+Protect `main` with a required pull request and these status checks:
+
+- `Unit tests and coverage` (includes the public-file privacy check).
+- `Terraform validation and tests`.
+
+Require the branch to be up to date, enforce checks for administrators, disable
+force pushes/deletion, and require zero human approvals. Feature pushes and PRs
+run credential-free CI; they do not publish images or deploy production. The
+release workflow accepts only `main`, reruns both jobs through the reusable
+`public-files.yml` workflow, then reruns the Python suite on ARM64 before publishing.
+A failure in privacy, Python tests, coverage or Terraform blocks image publication
+and deployment. The deployment uses the exact successful build's image digest.
+
+Each shared CI run adds a statement-coverage summary to its Actions page and
+uploads JSON/HTML reports retained for 30 days, including reports available after
+a test failure. Reports contain mocked test/source information, never live B2/OCI
+configuration. Unit test coverage must remain at least 91%.
 
 ## Inspect failures
 

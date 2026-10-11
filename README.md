@@ -248,7 +248,10 @@ OCI Vault using the VM's instance principal.
 
 [GitHub Actions setup](docs/github-actions.md) describes the permanent workflows,
 environment variables/secrets, workload identity federation, Terraform state,
-release triggers and how to inspect failures. CI needs no cloud credentials;
+release triggers and how to inspect failures. Feature branches and PRs run checks;
+merges to protected `main` trigger production builds/deployments after all shared
+checks pass. Coverage summaries and downloadable reports accompany CI runs.
+CI needs no cloud credentials;
 infrastructure and deployment use separate OCI identities.
 
 Infrastructure/release jobs use `homemovies-infrastructure` and

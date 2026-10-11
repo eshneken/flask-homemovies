@@ -2,16 +2,19 @@ name: Build and deploy Home Movies ARM64 application
 on:
   workflow_dispatch:
   push:
-    branches: ['**']
-    paths: ['python_app/**', 'scripts/**', '.coveragerc', '.github/actions/setup-oci-wif/**', '.github/workflows/oci-app-deploy.yml']
+    branches: ['main']
 permissions:
   contents: read
 concurrency:
   group: home-movies-application-release
   cancel-in-progress: false
 jobs:
+  checks:
+    if: vars.ENABLE_HOME_MOVIES_IMAGE_BUILD == 'true' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/public-files.yml
   build:
-    if: vars.ENABLE_HOME_MOVIES_IMAGE_BUILD == 'true' && startsWith(github.ref, 'refs/heads/')
+    needs: checks
+    if: vars.ENABLE_HOME_MOVIES_IMAGE_BUILD == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     permissions:
@@ -55,7 +58,7 @@ jobs:
         run: docker logout ghcr.io
   deploy:
     needs: build
-    if: vars.ENABLE_HOME_MOVIES_APP_DEPLOY == 'true'
+    if: vars.ENABLE_HOME_MOVIES_APP_DEPLOY == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: homemovies-production
