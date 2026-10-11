@@ -1,39 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="referrer" content="no-referrer">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shared Video</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
-</head>
-<body>
-
-<div class="top-pad">
-  <div class="container">
-    <div class="columns">
-      <div class="column is-three-quarters">
-        <h1 class="title">{{ video_name }}</h1>
-      </div>
-      <div class="column">
-      </div>
-    </div>
-    <div class="columns">
-      <div class="column is-full">
-        <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
-        <video id="player" class="video-js vjs-default-skin vjs-fluid" controls preload>
-          <source src="{{ par_url }}" type="{{ encoding_type }}">
-        </video>
-      </div>
-    </div>
-  </div>
-
-  <!-- video player scripts  -->
-  <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-  <script>
+{% extends 'base.html' %}
+{% block title %}{{ video_name }} · Home Movies{% endblock %}
+{% block brand %}<span class="brand"><span class="brandmark"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg></span>Home Movies</span>{% endblock %}
+{% block navigation %}{% endblock %}
+{% block content %}
+<main class="page"><div class="shared-heading"><p class="eyebrow">Shared movie</p><h1>{{ video_name }}</h1></div>{% include '_player.html' %}</main>
+<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+<script>
       var player = videojs('player', {fluid: true, enableSmoothSeeking: true, disablePictureInPicture: true});
       player.play();
   </script>
-
-</body>
-</html>
+{% endblock %}

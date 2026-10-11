@@ -221,6 +221,10 @@ test real movies on the family devices before final acceptance.
 
 ## Local development and tests
 
+The [Slate design guide](DESIGN.md) documents the shared visual system and
+responsive layouts. The refresh preserves existing authentication, playback and
+sharing behavior.
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
