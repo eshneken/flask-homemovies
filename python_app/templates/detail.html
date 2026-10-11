@@ -23,7 +23,6 @@
 
     <!-- video player scripts  -->
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/8.10.0/videojs-contrib-hls.min.js"></script>
     <script>
         var player = videojs('player', {fluid: true, enableSmoothSeeking: true, disablePictureInPicture: true});
         player.play();
@@ -82,12 +81,13 @@
 
         // Function to get a sharing URL from the server
         function getShareURL() {
-          data = {name: "{{full_name}}" };
+          const data = {name: {{ full_name|tojson }} };
           fetch("/share_url",
             {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
+                "X-CSRF-Token": {{ csrf_token|tojson }},
                 },
               body: JSON.stringify(data)
             })

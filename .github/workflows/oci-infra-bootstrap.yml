@@ -1,0 +1,36 @@
+name: Plan or apply reviewed Home Movies IAM and foundation
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+permissions:
+  contents: read
+concurrency:
+  group: home-movies-infrastructure
+  cancel-in-progress: false
+jobs:
+  bootstrap:
+    if: startsWith(github.ref, 'refs/heads/') && vars.ENABLE_HOME_MOVIES_INFRA_BOOTSTRAP == 'true'
+    environment: homemovies-bootstrap
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.15.5
+          terraform_wrapper: false
+      - name: Install pinned SDK dependencies
+        run: |
+          python3 -m venv "$RUNNER_TEMP/home-movies-bootstrap-venv"
+          "$RUNNER_TEMP/home-movies-bootstrap-venv/bin/python" -m pip install --quiet -r scripts/requirements-wif.txt
+      - name: Run the explicitly selected bootstrap operation with private output
+        env:
+          HM_GITHUB_ENVIRONMENT: homemovies-bootstrap
+          ENABLE_HOME_MOVIES_INFRA_BOOTSTRAP: ${{ vars.ENABLE_HOME_MOVIES_INFRA_BOOTSTRAP }}
+          HOME_MOVIES_BOOTSTRAP_OPERATION: ${{ vars.HOME_MOVIES_BOOTSTRAP_OPERATION }}
+          OCI_BOOTSTRAP_SETTINGS_JSON: ${{ secrets.OCI_BOOTSTRAP_SETTINGS_JSON }}
+          OCI_IAM_BOOTSTRAP_AUTH_JSON: ${{ secrets.OCI_IAM_BOOTSTRAP_AUTH_JSON }}
+        run: '"$RUNNER_TEMP/home-movies-bootstrap-venv/bin/python" scripts/oci_infra_bootstrap.py'

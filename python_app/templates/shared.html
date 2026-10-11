@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Shared Video</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
@@ -29,7 +30,6 @@
 
   <!-- video player scripts  -->
   <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/8.10.0/videojs-contrib-hls.min.js"></script>
   <script>
       var player = videojs('player', {fluid: true, enableSmoothSeeking: true, disablePictureInPicture: true});
       player.play();
