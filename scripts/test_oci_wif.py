@@ -12,6 +12,7 @@ import oci_wif as wif
 
 
 def environment():
+    """Return synthetic hosted-runner settings without cloud credentials."""
     return {'GITHUB_REPOSITORY': 'example/home-movies', 'GITHUB_REPOSITORY_ID': '1234',
             'HM_GITHUB_ENVIRONMENT': 'test-staging', 'GITHUB_REF': 'refs/heads/feature/player', 'GITHUB_EVENT_NAME': 'push',
             'OCI_WIF_AUDIENCE': 'example-audience', 'OCI_WIF_DOMAIN_URL': 'https://identity.example.com',
@@ -22,6 +23,7 @@ def environment():
 
 
 def jwt(**changes):
+    """Build an unsigned synthetic claim payload for local validation tests."""
     claims = {'iss': 'https://token.actions.githubusercontent.com',
               'sub': 'repo:example/home-movies:environment:test-staging',
               'repository': 'example/home-movies', 'repository_id': '1234',
@@ -33,12 +35,14 @@ def jwt(**changes):
 
 class WifTests(unittest.TestCase):
     def test_required_values_reject_config_injection(self):
+        """Verify required values reject config injection."""
         self.assertEqual(wif.require({'A': 'valid'}, 'A'), 'valid')
         for value in ('', 'bad\nkey_file=other', 'bad\r', 'bad\0'):
             with self.assertRaises(wif.WifError):
                 wif.require({'A': value}, 'A')
 
     def test_https_endpoints_reject_credentials_redirect_hosts_and_ports(self):
+        """Verify https endpoints reject credentials redirect hosts and ports."""
         self.assertEqual(wif.secure_url('https://example.com', 'example.com').hostname, 'example.com')
         for url in ('http://example.com', 'https://user:pass@example.com', 'https://example.com#x',
                     'https://example.com:444', 'https://other.com', 'file:///tmp/key'):
@@ -46,6 +50,7 @@ class WifTests(unittest.TestCase):
                 wif.secure_url(url, 'example.com')
 
     def test_identity_is_bound_to_repository_id_environment_branch_audience_and_expiry(self):
+        """Verify identity is bound to repository id environment branch audience and expiry."""
         wif.validate_claims(jwt(), environment(), 1000)
         for claims in ({'iss': 'https://evil.example.com'}, {'sub': 'repo:example/fork:environment:test-staging'},
                        {'repository': 'example/fork'}, {'repository_id': '5678'}, {'ref': 'refs/heads/other'},
@@ -57,6 +62,7 @@ class WifTests(unittest.TestCase):
                 wif.validate_claims(value, environment(), 1000)
 
     def test_all_repository_branches_are_supported_but_prs_and_tags_are_rejected(self):
+        """Verify all repository branches are supported but prs and tags are rejected."""
         for ref in ('refs/heads/main', 'refs/heads/feature/new-player', 'refs/heads/feature/player'):
             for event in ('push', 'workflow_dispatch'):
                 env = dict(environment(), GITHUB_REF=ref, GITHUB_EVENT_NAME=event)
@@ -68,6 +74,7 @@ class WifTests(unittest.TestCase):
                 wif.validate_claims(jwt(ref=ref), env, 1000)
 
     def test_exchange_sends_key_bound_native_oci_request_without_redirects(self):
+        """Verify exchange sends key bound native oci request without redirects."""
         session = Mock()
         session.request.side_effect = [Mock(status_code=200, json=lambda: {'value': jwt()}),
                                        Mock(status_code=200, json=lambda: {'token': '<test-upst>'})]
@@ -83,6 +90,7 @@ class WifTests(unittest.TestCase):
         self.assertEqual(second.kwargs['timeout'], 30)
 
     def test_bad_domain_and_oidc_url_fail_before_secret_request(self):
+        """Verify bad domain and oidc url fail before secret request."""
         for key, value in [('OCI_WIF_DOMAIN_URL', 'https://identity.example.com/extra'),
                            ('ACTIONS_ID_TOKEN_REQUEST_URL', 'https://evil.example.com/token')]:
             env = environment(); env[key] = value
@@ -92,6 +100,7 @@ class WifTests(unittest.TestCase):
             session.request.assert_not_called()
 
     def test_incomplete_and_injected_token_responses_fail_closed(self):
+        """Verify incomplete and injected token responses fail closed."""
         for result in ({}, {'value': 1}):
             session = Mock(); session.request.return_value = Mock(status_code=200, json=lambda: result)
             with self.assertRaises(wif.WifError):
@@ -104,6 +113,7 @@ class WifTests(unittest.TestCase):
                 wif.exchange(environment(), session, '<public-key>', 1000)
 
     def test_http_and_json_failures_never_include_server_or_exception_details(self):
+        """Verify http and json failures never include server or exception details."""
         session = Mock()
         cases = [Mock(status_code=403, text='<private-error>'),
                  Mock(status_code=302, text='<private-error>'),
@@ -120,6 +130,7 @@ class WifTests(unittest.TestCase):
         self.assertTrue(caught.exception.__suppress_context__)
 
     def test_owner_only_credentials_cleanup_and_existing_config_preserved(self):
+        """Verify owner only credentials cleanup and existing config preserved."""
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             directory = Path(tempfile.mkdtemp(prefix='homemovies-wif-', dir=root))
@@ -138,6 +149,7 @@ class WifTests(unittest.TestCase):
             self.assertEqual(config.read_text(), 'existing configuration')
 
     def test_cleanup_rejects_unrelated_paths_and_symlinks(self):
+        """Verify cleanup rejects unrelated paths and symlinks."""
         with tempfile.TemporaryDirectory() as root:
             root = Path(root); unrelated = root / 'other'; unrelated.mkdir()
             link = root / 'homemovies-wif-link'; link.symlink_to(unrelated, target_is_directory=True)
@@ -148,6 +160,7 @@ class WifTests(unittest.TestCase):
             wif.cleanup(root / 'homemovies-wif-gone', root / 'config', root)
 
     def test_setup_refuses_local_or_self_hosted_runner_and_existing_user_configuration(self):
+        """Verify setup refuses local or self hosted runner and existing user configuration."""
         with self.assertRaises(wif.WifError):
             wif.hosted_runner({})
         with self.assertRaises(wif.WifError):
@@ -160,6 +173,7 @@ class WifTests(unittest.TestCase):
             self.assertEqual(config.read_text(), 'preserved')
 
     def test_full_setup_verifies_namespace_exports_profile_and_cleans_up_on_failure(self):
+        """Verify full setup verifies namespace exports profile and cleans up on failure."""
         import oci
         for should_fail in (False, True):
             with self.subTest(failure=should_fail), tempfile.TemporaryDirectory() as root:
@@ -186,11 +200,13 @@ class WifTests(unittest.TestCase):
                         wif.cleanup(Path(exports['HM_WIF_DIRECTORY']), home / '.oci' / 'config', runner)
 
     def test_mask_escapes_github_command_characters(self):
+        """Verify mask escapes github command characters."""
         with patch('builtins.print') as output:
             wif.mask('a%\r\nb')
         output.assert_called_once_with('::add-mask::a%25%0D%0Ab', flush=True)
 
     def test_cli_dispatch_and_failures_are_sanitized(self):
+        """Verify cli dispatch and failures are sanitized."""
         with patch.object(sys, 'argv', ['oci_wif.py']), patch.object(wif, 'setup') as setup:
             self.assertEqual(wif.main(), 0); setup.assert_called_once()
         with patch.object(sys, 'argv', ['oci_wif.py', 'unsupported']), patch('builtins.print') as output:

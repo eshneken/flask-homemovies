@@ -23,6 +23,7 @@ INPUTS = {
 
 
 def client(env):
+    """Build a security-token signer from the runner's ephemeral OCI profile."""
     config = oci.config.from_file(require(env, 'OCI_CONFIG_FILE'), 'HOMEMOVIES')
     key = serialization.load_pem_private_key(Path(config['key_file']).read_bytes(), password=None)
     token = Path(config['security_token_file']).read_text()
@@ -30,6 +31,11 @@ def client(env):
 
 
 def run(env, root, directory, operation):
+    """Plan or apply application infrastructure against private destination state.
+
+    Verify compartment and foundation metadata before Terraform; reject
+    destructive plans and publish successful outputs in the state bucket.
+    """
     settings = {key: require(env, name) for key, name in INPUTS.items()}
     settings['state_bucket_name'] = require(env, 'OCI_STATE_BUCKET_NAME')
     for value in settings.values():
@@ -78,6 +84,7 @@ def run(env, root, directory, operation):
 
 
 def main():
+    """Guard the infrastructure workflow, use private temporary files and clean up credentials."""
     try:
         env = os.environ
         hosted_runner(env)

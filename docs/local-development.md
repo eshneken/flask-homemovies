@@ -189,8 +189,13 @@ python scripts/check_public_files.py
 
 Open `htmlcov/index.html` for line-by-line coverage. Tests use mocked B2/OCI
 clients and temporary databases; they do not read your development configuration
-or require GitHub Actions secrets. The coverage threshold is 91%, ensuring it
-exceeds 90%. These tests run on every GitHub push and pull request too.
+or require GitHub Actions secrets. The minimum coverage threshold is 95%.
+These tests run on every GitHub push and pull request too.
+
+Keep a docstring on every Python function, including deployment helpers and tests.
+Document browser functions with JavaScript comments. Explain authorization
+boundaries, expiry rules and non-obvious state transitions next to the relevant
+code, and update these explanations when behavior changes.
 
 Offline tests cover request authorization, token expiry/cleanup, catalog discovery,
 HLS rewriting, MP4 prefix collisions and deployment helpers. They do not prove

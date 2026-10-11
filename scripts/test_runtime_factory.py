@@ -15,6 +15,7 @@ import app as runtime
 
 class RuntimeFactoryTests(unittest.TestCase):
     def setUp(self):
+        """Create isolated fixtures for RuntimeFactoryTests."""
         self.directory = tempfile.TemporaryDirectory()
         self.config = Path(self.directory.name) / 'runtime.json'
         self.settings = {'B2_APPLICATION_KEY_ID': '<synthetic-key-id>',
@@ -23,9 +24,11 @@ class RuntimeFactoryTests(unittest.TestCase):
         self.config.chmod(0o600)
 
     def tearDown(self):
+        """Release temporary fixtures after RuntimeFactoryTests."""
         self.directory.cleanup()
 
     def test_owner_only_local_settings_bootstrap_native_sdk_and_repository(self):
+        """Verify owner only local settings bootstrap native sdk and repository."""
         with patch.dict(os.environ, {'HM_CONFIG_FILE': str(self.config)}, clear=True), \
                 patch.object(runtime, 'B2Api') as api, \
                 patch.object(runtime, 'B2Repository') as repository, \
@@ -36,6 +39,7 @@ class RuntimeFactoryTests(unittest.TestCase):
             create.assert_called_once_with(self.settings, repository.return_value)
 
     def test_local_file_permissions_and_bad_json_fail_without_disclosing_contents(self):
+        """Verify local file permissions and bad json fail without disclosing contents."""
         for mode, text in ((0o644, json.dumps(self.settings)), (0o600, 'not JSON')):
             self.config.write_text(text)
             self.config.chmod(mode)
@@ -48,6 +52,7 @@ class RuntimeFactoryTests(unittest.TestCase):
                 api.assert_not_called()
 
     def test_named_vault_secret_uses_instance_principal_without_secret_listing(self):
+        """Verify named vault secret uses instance principal without secret listing."""
         encoded = base64.b64encode(json.dumps(self.settings).encode()).decode()
         bundle = SimpleNamespace(data=SimpleNamespace(secret_bundle_content=SimpleNamespace(content=encoded)))
         with patch.dict(os.environ, {'HM_CONFIG_SECRET_OCID': '<synthetic-secret-id>'}, clear=True), \
@@ -63,6 +68,7 @@ class RuntimeFactoryTests(unittest.TestCase):
             self.assertEqual(create.call_args.args[0], self.settings)
 
     def test_sdk_failure_is_sanitized(self):
+        """Verify sdk failure is sanitized."""
         with patch.dict(os.environ, {'HM_CONFIG_FILE': str(self.config)}, clear=True), \
                 patch.object(runtime, 'B2Api') as api:
             api.return_value.authorize_account.side_effect = RuntimeError('<synthetic-sensitive-error>')
@@ -71,6 +77,7 @@ class RuntimeFactoryTests(unittest.TestCase):
             self.assertNotIn('synthetic-sensitive-error', str(caught.exception))
 
     def test_direct_launcher_binds_only_loopback_and_disables_debug(self):
+        """Verify direct launcher binds only loopback and disables debug."""
         with patch.dict(os.environ, {'HM_CONFIG_FILE': str(self.config)}, clear=True), \
                 patch('b2sdk.v3.B2Api'), patch('b2_repository.B2Repository'), \
                 patch('service.create_app') as create:

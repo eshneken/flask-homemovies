@@ -11,6 +11,11 @@ from service import create_app
 
 
 def create_runtime_app():
+    """Load private settings, authorize the native B2 SDK and create the WSGI app.
+
+    Production reads one named Vault secret using the VM instance principal.
+    Local development reads HM_CONFIG_FILE; failures suppress credential details.
+    """
     # SDK diagnostic logs can include bearer URLs. Never enable SDK wire logging.
     logging.getLogger('b2sdk').disabled = True
     logging.getLogger('werkzeug').disabled = True

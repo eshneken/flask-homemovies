@@ -23,11 +23,13 @@ SETTINGS = dict(tenancy_ocid='test-tenancy', compartment_ocid='test-compartment'
 
 
 def token(body):
+    """Encode synthetic OCI claims without contacting the identity service."""
     payload = base64.urlsafe_b64encode(json.dumps(body).encode()).decode().rstrip('=')
     return 'test.' + payload + '.test'
 
 
 def bundle():
+    """Build a synthetic bootstrap bundle with a temporary test key."""
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     return dict(token=token({'tenant': SETTINGS['tenancy_ocid'], 'sub': 'test-user', 'exp': 4600}),
                 expires_at=4600, user_ocid='test-user', tenancy_ocid=SETTINGS['tenancy_ocid'], region=SETTINGS['region'],
@@ -37,6 +39,7 @@ def bundle():
 
 class BootstrapTokenTests(unittest.TestCase):
     def test_mint_uses_destination_profile_and_new_key_not_registered_api_key(self):
+        """Verify mint uses destination profile and new key not registered api key."""
         loader = Mock(return_value=dict(tenancy=SETTINGS['tenancy_ocid'], region=SETTINGS['region'], user='test-user'))
         client = Mock()
         client.generate_user_security_token.return_value.data.token = token({'tenant': SETTINGS['tenancy_ocid'], 'sub': 'test-user', 'exp': 4600})
@@ -50,6 +53,7 @@ class BootstrapTokenTests(unittest.TestCase):
         bootstrap.validate_bundle(SETTINGS, result, 1000)
 
     def test_profile_mismatch_prevents_token_request(self):
+        """Verify profile mismatch prevents token request."""
         for setting in ('tenancy', 'region'):
             config = dict(tenancy=SETTINGS['tenancy_ocid'], region=SETTINGS['region'], user='test-user')
             config[setting] = 'wrong-destination'
@@ -59,6 +63,7 @@ class BootstrapTokenTests(unittest.TestCase):
             factory.assert_not_called()
 
     def test_issued_identity_and_expiration_are_verified(self):
+        """Verify issued identity and expiration are verified."""
         config = dict(tenancy=SETTINGS['tenancy_ocid'], region=SETTINGS['region'], user='test-user')
         for changed in ({'tenant': 'wrong'}, {'sub': 'wrong'}, {'exp': 1001}, {'exp': 9999}, {'exp': True}):
             body = dict(tenant=config['tenancy'], sub=config['user'], exp=4600, **{})
@@ -68,6 +73,7 @@ class BootstrapTokenTests(unittest.TestCase):
                 token_module.mint(SETTINGS, 1000, Mock(return_value=config), Mock(return_value=client))
 
     def test_malformed_claims_and_sanitized_cli(self):
+        """Verify malformed claims and sanitized cli."""
         for value in ('broken', 'one.!invalid.three', token([])):
             with self.assertRaises(WifError): token_module.claims(value)
         with tempfile.TemporaryDirectory() as td:
@@ -84,6 +90,7 @@ class BootstrapTokenTests(unittest.TestCase):
 
 class InfraBootstrapTests(unittest.TestCase):
     def test_identity_expiry_and_settings_fail_closed(self):
+        """Verify identity expiry and settings fail closed."""
         good = bundle()
         for changed in ({'region':'wrong'}, {'tenancy_ocid':'wrong'}, {'expires_at':1001},
                         {'token':token({'tenant':'wrong','sub':'test-user','exp':4600})},
@@ -93,6 +100,7 @@ class InfraBootstrapTests(unittest.TestCase):
         with self.assertRaises(WifError): bootstrap.validate_bundle(SETTINGS,good,3000)
 
     def test_tf_output_private_and_replacements_blocked(self):
+        """Verify tf output private and replacements blocked."""
         with patch.object(bootstrap.subprocess,'run',return_value=Mock(returncode=1,stdout=b'<test-private>',stderr=b'<test-private>')):
             with self.assertRaisesRegex(WifError,'raw output suppressed'): bootstrap.terraform(Path('test'),['plan'],{})
         with patch.object(bootstrap.subprocess,'run',return_value=Mock(returncode=0,stdout=b'{}')):
@@ -104,6 +112,7 @@ class InfraBootstrapTests(unittest.TestCase):
         with self.assertRaises(WifError): bootstrap.summarize({'resource_changes':[{'change':{'actions':['delete','create']}}]})
 
     def test_bucket_and_metadata_identity_checks(self):
+        """Verify bucket and metadata identity checks."""
         storage=Mock()
         storage.get_bucket.return_value.data=Mock(compartment_id='test-compartment',public_access_type='NoPublicAccess',versioning='Enabled')
         self.assertTrue(bootstrap.bucket_exists(storage,'test-namespace',SETTINGS))
@@ -125,6 +134,7 @@ class InfraBootstrapTests(unittest.TestCase):
                 with self.assertRaises(oci.exceptions.ServiceError): bootstrap.read_metadata(storage,'test-namespace',SETTINGS)
 
     def test_local_to_remote_backend_does_not_write_credentials_to_backend(self):
+        """Verify local to remote backend does not write credentials to backend."""
         with tempfile.TemporaryDirectory() as td:
             module=Path(td)/'foundation';module.mkdir();(module/'backend.tf').write_text('terraform { backend "oci" {} }')
             bootstrap.local_backend(module)
@@ -137,6 +147,7 @@ class InfraBootstrapTests(unittest.TestCase):
             self.assertEqual((module/'private-backend.json').stat().st_mode & 0o777,0o600)
 
     def test_full_plan_and_apply_with_durable_state_and_group_handoff(self):
+        """Verify full plan and apply with durable state and group handoff."""
         for operation, exists, resume in (('plan',False,False),('plan',True,True),('apply',False,False),('apply',True,True)):
             with self.subTest(operation=operation,exists=exists), tempfile.TemporaryDirectory() as td:
                 root=Path(td)/'repo'
@@ -147,6 +158,7 @@ class InfraBootstrapTests(unittest.TestCase):
                 identity=Mock();identity.get_compartment.return_value.data=SimpleNamespace(name='test-home',lifecycle_state='ACTIVE')
                 calls=[]
                 def tf(module,args,env):
+                    """Simulate Terraform outputs and state transitions without provisioning resources."""
                     calls.append((module.name,args))
                     if '-target=oci_objectstorage_bucket.state' in args:
                         (module/'terraform.tfstate').write_text('{"version":4}')
@@ -174,6 +186,7 @@ class InfraBootstrapTests(unittest.TestCase):
                         self.assertEqual(state_call.args[2],'foundation/terraform.tfstate')
 
     def test_main_guards_and_cleanup_on_failure(self):
+        """Verify main guards and cleanup on failure."""
         with patch.dict(os.environ,{'GITHUB_ACTIONS':'false'},clear=True),patch('builtins.print'):
             self.assertEqual(bootstrap.main(),1)
         with tempfile.TemporaryDirectory() as td:

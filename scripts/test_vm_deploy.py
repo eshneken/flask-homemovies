@@ -15,6 +15,7 @@ SETTINGS = {'hostname': 'movies.example.com', 'image_repository': 'ghcr.io/examp
 
 class DeploymentTests(unittest.TestCase):
     def test_only_exact_repository_and_sha256_are_accepted(self):
+        """Verify only exact repository and sha256 are accepted."""
         self.assertEqual(deploy.validate_image(IMAGE, SETTINGS['image_repository']), IMAGE)
         for image in ('ghcr.io/other/movies@sha256:' + 'a' * 64, 'ghcr.io/example/home-movies:latest',
                       IMAGE + ';id', IMAGE + '\n', IMAGE[:-1], 'https://' + IMAGE):
@@ -24,6 +25,7 @@ class DeploymentTests(unittest.TestCase):
             deploy.validate_image(IMAGE, 'ghcr.io/example/home-movies;id')
 
     def test_settings_require_root_ownership_no_other_writers_and_safe_hostname(self):
+        """Verify settings require root ownership no other writers and safe hostname."""
         config = Mock()
         config.stat.return_value = SimpleNamespace(st_uid=0, st_mode=0o644)
         config.read_text.return_value = '{"hostname":"movies.example.com"}'
@@ -39,6 +41,7 @@ class DeploymentTests(unittest.TestCase):
                 deploy.load_settings()
 
     def test_host_commands_do_not_use_shell_or_expose_output(self):
+        """Verify host commands do not use shell or expose output."""
         with patch.object(deploy.subprocess, 'run') as run:
             deploy.command(['podman', 'pull', IMAGE])
             self.assertTrue(run.call_args.kwargs['check'])
@@ -50,6 +53,7 @@ class DeploymentTests(unittest.TestCase):
             self.assertNotIn('<private-error>', str(caught.exception))
 
     def test_image_record_is_atomic_owner_only_and_cleans_failed_temporary_write(self):
+        """Verify image record is atomic owner only and cleans failed temporary write."""
         with tempfile.TemporaryDirectory() as root:
             image_file = Path(root) / 'image.env'
             with patch.object(deploy, 'IMAGE_FILE', image_file):
@@ -62,6 +66,7 @@ class DeploymentTests(unittest.TestCase):
                 self.assertEqual(list(Path(root).iterdir()), [image_file])
 
     def test_health_check_is_local_host_bound_and_fails_closed(self):
+        """Verify health check is local host bound and fails closed."""
         opener = MagicMock()
         response = opener.open.return_value.__enter__.return_value
         with patch.object(deploy.urllib.request, 'build_opener', return_value=opener):
@@ -75,6 +80,7 @@ class DeploymentTests(unittest.TestCase):
             self.assertFalse(deploy.healthy(SETTINGS['hostname']))
 
     def test_pull_precedes_service_change_and_health_failure_is_reported(self):
+        """Verify pull precedes service change and health failure is reported."""
         for result in (True, False):
             with tempfile.TemporaryDirectory() as root, patch.object(deploy, 'LOCK', Path(root) / 'lock'), \
                     patch.object(deploy, 'command') as command, patch.object(deploy, 'record_image') as record, \
@@ -91,6 +97,7 @@ class DeploymentTests(unittest.TestCase):
                 self.assertEqual(order.mock_calls[2].args[0], ['/usr/bin/systemctl', 'restart', 'home-movies.service'])
 
     def test_failed_pull_and_concurrent_deploy_do_not_change_running_service(self):
+        """Verify failed pull and concurrent deploy do not change running service."""
         with tempfile.TemporaryDirectory() as root, patch.object(deploy, 'LOCK', Path(root) / 'lock'), \
                 patch.object(deploy, 'command', side_effect=deploy.DeployError('failed')), patch.object(deploy, 'record_image') as record:
             with self.assertRaises(deploy.DeployError):
@@ -102,6 +109,7 @@ class DeploymentTests(unittest.TestCase):
             record.assert_not_called()
 
     def test_entrypoint_requires_root_and_one_argument_and_sanitizes_errors(self):
+        """Verify entrypoint requires root and one argument and sanitizes errors."""
         with patch.object(deploy.os, 'geteuid', return_value=0), patch.object(sys, 'argv', ['helper', IMAGE]), \
                 patch.object(deploy, 'load_settings', return_value=SETTINGS), patch.object(deploy, 'deploy') as invoke, patch('builtins.print'):
             self.assertEqual(deploy.main(), 0); invoke.assert_called_once_with(IMAGE, SETTINGS)

@@ -9,6 +9,7 @@ from b2_policy import validate_scope
 
 class B2Repository:
     def __init__(self, api, bucket_id, clock=time.time, discovery_prefix=''):
+        """Initialize catalog caching and verify the configured bucket is private."""
         self.api, self.bucket_id, self.clock = api, bucket_id, clock
         self.discovery_prefix = discovery_prefix
         self._catalog = None
@@ -17,6 +18,7 @@ class B2Repository:
         self.bucket = self.private_bucket()
 
     def private_bucket(self):
+        """Refresh bucket metadata and reject an unsafe key scope or public bucket."""
         validate_scope(self.api.account_info.get_allowed(), self.bucket_id)
         buckets = self.api.list_buckets(bucket_id=self.bucket_id, use_cache=False)
         if len(buckets) != 1 or buckets[0].id_ != self.bucket_id or buckets[0].type_ != 'allPrivate':
@@ -24,6 +26,11 @@ class B2Repository:
         return buckets[0]
 
     def catalog(self):
+        """Discover exact HLS and MP4 entry names, caching successful listings for five minutes.
+
+        Refresh failures propagate instead of serving stale authorization data.
+        A lock prevents concurrent requests from rebuilding the same catalog.
+        """
         with self._lock:
             if self._catalog is not None and self.clock() - self._catalog_at < 300:
                 return self._catalog
@@ -41,10 +48,12 @@ class B2Repository:
             return self._catalog
 
     def grant(self, entry, parent_expires_at):
+        """Return the media helper and a grant bounded by the session or share deadline."""
         media = B2Media(self.api, self.bucket_id, self.catalog(), self.clock)
         return media, media.grant(entry, parent_expires_at)
 
     def playlist(self, name, prefix):
+        """Read a UTF-8 playlist within its movie prefix, bounded to one MiB."""
         if (not name.startswith(prefix) or not name.endswith('.m3u8')
                 or any(p in ('', '.', '..') for p in name.split('/'))):
             raise MediaAccessError('Invalid playlist scope.')

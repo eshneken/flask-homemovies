@@ -20,6 +20,7 @@ class WifError(Exception):
 
 
 def require(env, name):
+    """Read a required environment value and reject config-file control characters."""
     value = env.get(name, '')
     if not value or any(char in value for char in '\r\n\0'):
         raise WifError('Missing or invalid configuration: ' + name)
@@ -27,6 +28,7 @@ def require(env, name):
 
 
 def secure_url(value, expected_host=None):
+    """Require HTTPS without embedded credentials and optionally enforce an exact host."""
     parsed = urlsplit(value)
     if (parsed.scheme != 'https' or not parsed.hostname or parsed.username or
             parsed.password or parsed.fragment or parsed.port not in (None, 443) or
@@ -36,6 +38,7 @@ def secure_url(value, expected_host=None):
 
 
 def request_json(session, method, url, *, accepted_statuses=(200,), **kwargs):
+    """Fetch a JSON object without redirects and suppress sensitive failure details."""
     try:
         response = session.request(method, url, timeout=30, allow_redirects=False, **kwargs)
         if response.status_code not in accepted_statuses:
@@ -51,6 +54,11 @@ def request_json(session, method, url, *, accepted_statuses=(200,), **kwargs):
 
 
 def validate_claims(token, env, now):
+    """Check GitHub token context before exchange; OCI verifies the token signature.
+
+    Bind the request to repository identity, environment, branch, event,
+    audience and remaining lifetime. These decoded claims alone establish no trust.
+    """
     # These checks prevent configuration mistakes. OCI verifies the JWT signature.
     try:
         parts = token.split('.')
@@ -80,6 +88,7 @@ def validate_claims(token, env, now):
 
 
 def exchange(env, session, public_key, now):
+    """Exchange GitHub OIDC for a native OCI token bound to the runner's public key."""
     domain = require(env, 'OCI_WIF_DOMAIN_URL')
     parsed_domain = secure_url(domain)
     if parsed_domain.path not in ('', '/') or parsed_domain.query:
@@ -112,6 +121,7 @@ def exchange(env, session, public_key, now):
 
 
 def private_write(path, data):
+    """Create an owner-only file exclusively, refusing to overwrite an existing path."""
     # Exclusive creation: never overwrite an existing credential/config file.
     descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     with os.fdopen(descriptor, 'wb') as stream:
@@ -119,6 +129,7 @@ def private_write(path, data):
 
 
 def install_credentials(directory, config_path, env, private_key, fingerprint, token):
+    """Write the ephemeral key, security token and matching HOMEMOVIES CLI profile."""
     private_write(directory / 'private.pem', private_key)
     private_write(directory / 'security-token', token)
     lines = ['[HOMEMOVIES]',
@@ -135,6 +146,7 @@ def install_credentials(directory, config_path, env, private_key, fingerprint, t
 
 
 def cleanup(directory, config_path, runner_temp):
+    """Remove only owned runner credentials and their validated temporary directory."""
     directory = Path(directory)
     root = Path(runner_temp).resolve()
     if directory.is_symlink() or directory.resolve().parent != root or not directory.name.startswith('homemovies-wif-'):
@@ -148,15 +160,22 @@ def cleanup(directory, config_path, runner_temp):
 
 
 def mask(value):
+    """Escape and emit a GitHub mask command for a private value."""
     print('::add-mask::' + value.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'), flush=True)
 
 
 def hosted_runner(env):
+    """Reject execution outside a GitHub-hosted Actions runner."""
     if env.get('GITHUB_ACTIONS') != 'true' or env.get('RUNNER_ENVIRONMENT') != 'github-hosted':
         raise WifError('Credential setup is restricted to ephemeral GitHub-hosted runners.')
 
 
 def setup(env):
+    """Create key-bound WIF credentials, prove OCI access and export their temporary paths.
+
+    Existing local OCI configuration is never overwritten. Failures remove
+    credentials and report no raw provider or HTTP error details.
+    """
     hosted_runner(env)
     for name in ['OCI_WIF_DOMAIN_URL', 'OCI_WIF_CLIENT_ID', 'OCI_WIF_CLIENT_SECRET',
                  'OCI_WIF_SERVICE_USER_OCID', 'OCI_TENANCY_OCID']:
@@ -195,6 +214,7 @@ def setup(env):
 
 
 def main():
+    """Dispatch hosted-runner WIF setup or cleanup with sanitized error reporting."""
     try:
         if sys.argv[1:] == ['cleanup']:
             hosted_runner(os.environ)

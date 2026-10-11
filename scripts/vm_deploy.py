@@ -21,6 +21,7 @@ class DeployError(Exception):
 
 
 def validate_image(image, repository):
+    """Accept only the configured GHCR repository pinned to a full SHA-256 digest."""
     if not re.fullmatch(r'ghcr\.io/[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*', repository):
         raise DeployError('Invalid configured image repository.')
     if not re.fullmatch(re.escape(repository) + r'@sha256:[a-f0-9]{64}', image):
@@ -29,6 +30,7 @@ def validate_image(image, repository):
 
 
 def load_settings():
+    """Load root-owned deployment settings and validate their hostname."""
     stat = CONFIG.stat()
     if stat.st_uid != 0 or stat.st_mode & 0o022:
         raise DeployError('Deployment configuration must be root-owned and not writable by others.')
@@ -39,6 +41,7 @@ def load_settings():
 
 
 def command(arguments):
+    """Run an argument list without a shell or exposing command output."""
     try:
         subprocess.run(arguments, check=True, timeout=180, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
@@ -46,6 +49,7 @@ def command(arguments):
 
 
 def record_image(image):
+    """Write and atomically replace the owner-only image record used by systemd."""
     # Atomically replace the service's digest after the image has been pulled.
     descriptor, name = tempfile.mkstemp(prefix='.image-', dir=IMAGE_FILE.parent)
     try:
@@ -60,6 +64,7 @@ def record_image(image):
 
 
 def healthy(hostname):
+    """Check loopback application health using the configured Host header and no proxy."""
     request = urllib.request.Request('http://127.0.0.1:5000/health', headers={'Host': hostname})
     # Never send local health checks through an environment-supplied HTTP proxy.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -71,6 +76,11 @@ def healthy(hostname):
 
 
 def deploy(image, settings):
+    """Serialize deployment, pull the exact image and restart the service, then verify health.
+
+    A failed pull leaves the running service untouched. A health failure
+    is reported; it does not automatically roll back the image record.
+    """
     image = validate_image(image, settings['image_repository'])
     with open(LOCK, 'a') as lock:
         try:
@@ -88,6 +98,7 @@ def deploy(image, settings):
 
 
 def main():
+    """Require root and one image argument, then deploy with sanitized diagnostics."""
     try:
         if os.geteuid() != 0 or len(sys.argv) != 2:
             raise DeployError('Run the installed helper as root with one image digest.')

@@ -11,10 +11,12 @@ from b2_policy import validate_scope
 
 
 class MediaAccessError(ValueError):
+    """A media request failed validation or could not be safely authorized."""
     pass
 
 
 def movie_prefix(entrypoint):
+    """Validate an HLS catalog entry and return its directory with a trailing slash."""
     if (not entrypoint.endswith('.hls/output.m3u8') or entrypoint.startswith('/')
             or any(c in entrypoint for c in ('\\', '\x00', '\r', '\n'))
             or any(p in ('', '.', '..') for p in entrypoint.split('/'))):
@@ -23,6 +25,7 @@ def movie_prefix(entrypoint):
 
 
 def media_kind(entrypoint):
+    """Return hls or mp4 for a safe catalog entry; reject HLS segment files."""
     if (not isinstance(entrypoint, str) or entrypoint.startswith('/')
             or any(ord(c) < 32 for c in entrypoint) or '\\' in entrypoint
             or any(p in ('', '.', '..') for p in entrypoint.split('/'))):
@@ -37,11 +40,17 @@ def media_kind(entrypoint):
 
 
 def movie_title(entrypoint):
+    """Derive a display title while preserving spaces, case and Unicode."""
     return (movie_prefix(entrypoint).rstrip('/').rsplit('/', 1)[-1][:-4]
             if media_kind(entrypoint) == 'hls' else entrypoint.rsplit('/', 1)[-1][:-4])
 
 
 def resolve_reference(playlist, reference, prefix):
+    """Resolve a relative HLS URI inside the authorized movie directory.
+
+    Decode before normalizing so encoded traversal cannot escape the prefix.
+    External URLs, query strings and fragments are unsupported.
+    """
     if any(ord(c) < 32 for c in reference):
         raise MediaAccessError('Unsafe HLS reference.')
     parts = urlsplit(reference)
@@ -67,6 +76,7 @@ def rewrite_manifest(text, playlist, prefix, media_url, playlist_url):
         raise MediaAccessError('Invalid playlist or movie scope.')
 
     def rewrite(uri):
+        """Route a validated child playlist through Flask and other objects directly to B2."""
         name = resolve_reference(playlist, uri, prefix)
         return playlist_url(name) if name.lower().endswith('.m3u8') else media_url(name)
 
@@ -90,6 +100,7 @@ def rewrite_manifest(text, playlist, prefix, media_url, playlist_url):
 
 @dataclass(frozen=True)
 class DownloadGrant:
+    """Local scope and deadline for a B2 bearer token, hidden from dataclass repr."""
     prefix: str
     expires_at: float
     token: str = field(repr=False)
@@ -98,12 +109,18 @@ class DownloadGrant:
 
 class B2Media:
     def __init__(self, api, bucket_id, catalog_entrypoints, clock=time.time):
+        """Bind the B2 client, bucket and catalog snapshot to an injectable clock."""
         self.api = api
         self.bucket_id = bucket_id
         self.catalog = frozenset(catalog_entrypoints)
         self.clock = clock
 
     def grant(self, entrypoint, parent_expires_at, max_seconds=7200):
+        """Mint a private B2 prefix token whose lifetime cannot exceed its parent.
+
+        HLS grants cover one directory. MP4 grants use the full filename as a
+        prefix and require fresh collision checks before and after issuance.
+        """
         if entrypoint not in self.catalog:
             raise MediaAccessError('Movie is not in the authorized catalog.')
         exact_name = entrypoint if media_kind(entrypoint) == 'mp4' else None
@@ -122,6 +139,8 @@ class B2Media:
             self.assert_exact_file(exact_name)
         token = bucket.get_download_authorization(prefix, seconds)
         if exact_name:
+            # Catch collisions introduced during issuance. Uploads must preserve
+            # this invariant for the whole grant lifetime; B2 still grants a prefix.
             self.assert_exact_file(exact_name)
         expires = started + seconds
         finished = self.clock()
@@ -130,6 +149,7 @@ class B2Media:
         return DownloadGrant(prefix, expires, token, exact_name)
 
     def assert_exact_file(self, name):
+        """Require exactly one current object matching the complete MP4 filename prefix."""
         # Native B2 has prefix grants, not exact-file grants. Check every current
         # matching object, including non-catalog files. Never cache this check.
         listing = self.api.session.list_file_names(self.bucket_id, prefix=name, max_file_count=2)
@@ -138,10 +158,13 @@ class B2Media:
             raise MediaAccessError('MP4 filename prefix is missing or ambiguous.')
 
     def media_url(self, bucket, name, grant):
+        """Build a bearer download URL only for an object within an unexpired grant."""
         if (not name.startswith(grant.prefix) or self.clock() >= grant.expires_at
                 or (grant.exact_name is not None and name != grant.exact_name)):
             raise MediaAccessError('Object is outside the active movie grant.')
         # Validate components before the SDK constructs a download-by-name URL.
         if any(p in ('', '.', '..') for p in name.split('/')) or '\\' in name:
             raise MediaAccessError('Unsafe object name.')
+        # Native downloads accept query authorization for browser media requests.
+        # The resulting URL is a credential and must never be logged.
         return bucket.get_download_url(name) + '?' + urlencode({'Authorization': grant.token})

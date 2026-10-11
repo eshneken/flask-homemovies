@@ -10,7 +10,7 @@ addresses or credentials in these files.
 
 | Workflow file | Trigger and purpose | Cloud credentials |
 | --- | --- | --- |
-| `public-files.yml` | Every push/PR, manual runs and release calls: privacy/unit tests, ≥91% coverage, Terraform validation/mock tests | None |
+| `public-files.yml` | Every push/PR, manual runs and release calls: privacy/unit tests, ≥95% coverage, Terraform validation/mock tests | None |
 | `oci-wif-verify.yml` | Enabled branch pushes/manual runs: verify the production federation identity | Short-lived OCI session via WIF |
 | `oci-application-infra.yml` | Enabled `main` pushes affecting infrastructure/helpers, or manual runs on `main`: Terraform plan/apply | Infrastructure WIF identity |
 | `oci-app-deploy.yml` | Enabled `main` pushes/manual runs on `main`: shared checks, ARM64 tests/build, GHCR publish, VM deployment | GitHub job token for GHCR; deployment WIF identity for OCI |
@@ -199,7 +199,7 @@ branch. While developing a workflow solely on a feature branch, use its matching
 push trigger or rerun an existing run. After merging, select the desired branch
 in the manual run menu. CI checks remain active on every push/PR regardless of
 cloud opt-in flags. Unit tests use mocks and temporary SQLite files, not B2/OCI
-credentials or GitHub secrets; `.coveragerc` requires at least 91% coverage.
+credentials or GitHub secrets; `.coveragerc` requires at least 95% coverage.
 
 ## Required checks and release gating
 
@@ -219,7 +219,7 @@ and deployment. The deployment uses the exact successful build's image digest.
 Each shared CI run adds a statement-coverage summary to its Actions page and
 uploads JSON/HTML reports retained for 30 days, including reports available after
 a test failure. Reports contain mocked test/source information, never live B2/OCI
-configuration. Unit test coverage must remain at least 91%.
+configuration. Unit test coverage must remain at least 95%.
 
 ## Inspect failures
 
