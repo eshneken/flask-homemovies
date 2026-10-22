@@ -18,6 +18,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - name: Refresh runner CA certificates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --only-upgrade ca-certificates
+          sudo update-ca-certificates
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
         with:
           terraform_version: 1.15.5
@@ -25,6 +30,7 @@ jobs:
       - name: Install pinned SDK dependencies
         run: |
           python3 -m venv "$RUNNER_TEMP/home-movies-bootstrap-venv"
+          "$RUNNER_TEMP/home-movies-bootstrap-venv/bin/python" -m pip --disable-pip-version-check install --no-deps -r python_app/requirements-bootstrap.txt
           "$RUNNER_TEMP/home-movies-bootstrap-venv/bin/python" -m pip install --quiet -r scripts/requirements-wif.txt
       - name: Run the explicitly selected bootstrap operation with private output
         env:

@@ -228,7 +228,8 @@ sharing behavior.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r scripts/requirements-test.txt
+python -m pip --disable-pip-version-check install --no-deps -r python_app/requirements-bootstrap.txt
+python -m pip install -r scripts/requirements-test.txt
 python -m coverage run -m unittest discover -s scripts -p 'test_*.py'
 python -m coverage report
 python scripts/check_public_files.py
