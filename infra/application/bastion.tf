@@ -3,7 +3,7 @@ resource "oci_bastion_bastion" "maintenance" {
   compartment_id               = var.compartment_ocid
   target_subnet_id             = oci_core_subnet.application.id
   name                         = "home-movies-maintenance"
-  client_cidr_block_allow_list = [var.bastion_client_cidr]
+  client_cidr_block_allow_list = var.bastion_client_cidrs
   max_session_ttl_in_seconds   = 3600
 }
 resource "oci_core_network_security_group_security_rule" "ssh_from_bastion" {

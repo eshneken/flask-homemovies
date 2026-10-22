@@ -1,6 +1,13 @@
 name: Home Movies application infrastructure
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Plan or apply the configured infrastructure changes
+        required: true
+        type: choice
+        default: plan
+        options: [plan, apply]
   push:
     branches: ['main']
     paths: ['infra/application/**', 'scripts/oci_application_infra.py', '.github/workflows/oci-application-infra.yml']
@@ -59,7 +66,7 @@ jobs:
         env:
           HM_GITHUB_ENVIRONMENT: homemovies-infrastructure
           ENABLE_HOME_MOVIES_APPLICATION_INFRA: ${{ vars.ENABLE_HOME_MOVIES_APPLICATION_INFRA }}
-          HOME_MOVIES_APPLICATION_OPERATION: ${{ vars.HOME_MOVIES_APPLICATION_OPERATION }}
+          HOME_MOVIES_APPLICATION_OPERATION: ${{ inputs.operation || vars.HOME_MOVIES_APPLICATION_OPERATION }}
           OCI_TENANCY_OCID: ${{ vars.OCI_TENANCY_OCID }}
           OCI_COMPARTMENT_OCID: ${{ vars.OCI_COMPARTMENT_OCID }}
           OCI_COMPARTMENT_NAME: ${{ vars.OCI_COMPARTMENT_NAME }}
@@ -68,7 +75,7 @@ jobs:
           OCI_IMAGE_OCID: ${{ vars.OCI_IMAGE_OCID }}
           OCI_STATE_BUCKET_NAME: ${{ vars.OCI_STATE_BUCKET_NAME }}
           OCI_DEPLOYMENT_GROUP_OCID: ${{ vars.OCI_DEPLOYMENT_GROUP_OCID }}
-          OCI_BASTION_CLIENT_CIDR: ${{ vars.OCI_BASTION_CLIENT_CIDR }}
+          OCI_BASTION_CLIENT_CIDRS: ${{ vars.OCI_BASTION_CLIENT_CIDRS }}
           APP_HOSTNAME: ${{ vars.APP_HOSTNAME }}
           ACME_EMAIL: ${{ vars.ACME_EMAIL }}
         run: '"$HM_WIF_PYTHON" scripts/oci_application_infra.py'

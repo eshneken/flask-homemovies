@@ -18,7 +18,7 @@ INPUTS = {
     'compartment_name': 'OCI_COMPARTMENT_NAME', 'region': 'OCI_REGION',
     'availability_domain': 'OCI_AVAILABILITY_DOMAIN', 'image_ocid': 'OCI_IMAGE_OCID',
     'hostname': 'APP_HOSTNAME', 'acme_email': 'ACME_EMAIL',
-    'bastion_client_cidr': 'OCI_BASTION_CLIENT_CIDR',
+    'bastion_client_cidrs': 'OCI_BASTION_CLIENT_CIDRS',
 }
 
 

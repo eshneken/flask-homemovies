@@ -12,13 +12,32 @@ Your operator identity needs permission to read the Bastion/target instance and
 create, read and delete Bastion sessions. The VM must be running with OpenSSH,
 Oracle Cloud Agent and its Bastion plugin enabled; Terraform enables the plugin.
 
-Get your current public IPv4 address using a trusted IP-check service. Compare it
-with the Bastion client CIDR allow list in the OCI console. If it has changed,
-set GitHub environment `homemovies-infrastructure` variable
-`OCI_BASTION_CLIENT_CIDR` to that IPv4 address followed by `/32`, update the private
-configuration masks, and run the infrastructure plan/apply workflow. This updates
-the Bastion allow list; do not open the VM's SSH port to the Internet. A VPN or
-changed home IP can prevent connection even when a session is active.
+Bastion accepts SSH clients only from the configured operator/VPN CIDRs. The VM
+has no public IP; its port 22 accepts only the Bastion's private endpoint, rather
+than allowing direct SSH from the Internet. Public ports 80/443 serve HTTPS
+redirects, certificate issuance and the app; port 8080 is private to the NLB.
+
+Configure GitHub environment `homemovies-infrastructure` variable
+`OCI_BASTION_CLIENT_CIDRS` as a JSON array, for example
+`["192.0.2.1/32", "198.51.100.0/23", "203.0.112.0/20"]`. Use your actual home IP
+as a `/32` and canonical network addresses for VPN ranges. Empty lists, invalid
+CIDRs, IPv6 and world-open `/0` ranges fail validation. Real addresses belong in
+GitHub settings, not source code.
+
+When your IP changes:
+
+1. Edit `OCI_BASTION_CLIENT_CIDRS` in that GitHub environment and refresh
+   `OCI_PRIVATE_CONFIG_MASKS` for changed private configuration values.
+2. In Actions, run **Home Movies application infrastructure** on `main`, choosing
+   operation **plan**, and review the proposed Bastion allow-list update.
+3. Run the same workflow with operation **apply**. The allow list updates in place;
+   this does not replace the VM, rebuild the image or rerun cloud-init.
+4. Create a new Bastion SSH session from an allowed address. OCI applies allow-list
+   changes to new sessions; when removing access, delete existing sessions to
+   revoke them immediately rather than waiting for the one-hour expiry.
+
+A VPN or changed home IP can prevent connection if its public egress address is
+outside this list. See [Oracle's Bastion update behavior](https://docs.oracle.com/en-us/iaas/Content/Bastion/Tasks/update-bastion.htm).
 
 Use a local SSH key. If the public key file is absent, derive it without exposing
 the private key:
@@ -37,7 +56,7 @@ in Terraform or VM launch metadata.
 1. Select the application tenancy and region in OCI.
 2. Open **Identity & Security → Bastion**, select the application compartment and
    open `home-movies-maintenance`.
-3. Verify the client allow list contains your current IPv4 `/32`.
+3. Verify the client allow list contains your current public IP or VPN egress range.
 4. Select **Create session** and choose **Managed SSH session**.
 5. Select the Home Movies Compute instance in the application compartment. Use
    OS username `opc`, port `22` and its private IP.

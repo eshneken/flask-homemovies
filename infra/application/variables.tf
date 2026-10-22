@@ -74,12 +74,18 @@ variable "load_balancer_subnet_cidr" {
   default = "10.42.2.0/24"
 }
 
-variable "bastion_client_cidr" {
-  type      = string
+variable "bastion_client_cidrs" {
+  type      = list(string)
   sensitive = true
+  nullable  = false
   validation {
-    condition     = can(cidrhost(var.bastion_client_cidr, 0)) && can(regex("^[0-9.]+/32$", var.bastion_client_cidr))
-    error_message = "Allow only the operator's current IPv4 address as a /32 CIDR."
+    condition = length(var.bastion_client_cidrs) > 0 && alltrue([
+      for cidr in var.bastion_client_cidrs :
+      can(cidrnetmask(cidr)) &&
+      try(tonumber(split("/", cidr)[1]) > 0, false) &&
+      try(cidrhost(cidr, 0) == split("/", cidr)[0], false)
+    ])
+    error_message = "Supply a nonempty list of canonical IPv4 CIDRs; world-open /0 ranges are forbidden."
   }
 }
 
