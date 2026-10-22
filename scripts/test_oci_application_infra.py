@@ -18,7 +18,7 @@ ENV = dict(OCI_DEPLOYMENT_GROUP_OCID='test-deploy-group', OCI_TENANCY_OCID='test
            OCI_COMPARTMENT_NAME='test-home', OCI_REGION='us-ashburn-1',
            OCI_AVAILABILITY_DOMAIN='test-ad', OCI_IMAGE_OCID='test-image',
            APP_HOSTNAME='movies.example.com', ACME_EMAIL='admin@example.com',
-           OCI_BASTION_CLIENT_CIDR='192.0.2.1/32', OCI_STATE_BUCKET_NAME='test-state',
+           OCI_BASTION_CLIENT_CIDRS='["192.0.2.1/32", "198.51.100.0/23", "203.0.112.0/20"]', OCI_STATE_BUCKET_NAME='test-state',
            GITHUB_REPOSITORY='example/home-movies')
 METADATA = dict(vault_ocid='test-vault', vault_key_ocid='test-key', runtime_dynamic_group_ocid='test-group')
 
@@ -69,6 +69,8 @@ class ApplicationInfrastructureTests(unittest.TestCase):
                 self.assertEqual(backend['auth'], 'SecurityToken')
                 self.assertEqual((work / 'backend.json').stat().st_mode & 0o777, 0o600)
                 self.assertEqual(calls[0][2]['TF_VAR_runtime_dynamic_group_ocid'], 'test-group')
+                self.assertEqual(json.loads(calls[0][2]['TF_VAR_bastion_client_cidrs']),
+                                 ['192.0.2.1/32', '198.51.100.0/23', '203.0.112.0/20'])
                 self.assertNotIn('TF_VAR_PASSWORD_HASH', calls[0][2])
                 if operation == 'plan':
                     storage.put_object.assert_not_called()

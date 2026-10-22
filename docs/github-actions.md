@@ -104,8 +104,16 @@ In `homemovies-infrastructure`, add:
 | `OCI_DEPLOYMENT_GROUP_OCID` | Deployment IAM group used in the runtime policy |
 | `OCI_STATE_BUCKET_NAME` | Private versioned state bucket |
 | `OCI_AVAILABILITY_DOMAIN`, `OCI_IMAGE_OCID` | A1 placement and Oracle Linux image |
-| `OCI_BASTION_CLIENT_CIDR` | Current operator public IPv4 `/32` |
+| `OCI_BASTION_CLIENT_CIDRS` | JSON array of allowed operator/VPN IPv4 CIDRs |
 | `APP_HOSTNAME`, `ACME_EMAIL` | Public DNS hostname and Let's Encrypt contact |
+
+`OCI_BASTION_CLIENT_CIDRS` is a JSON array of canonical IPv4 CIDRs, such as
+`["192.0.2.1/32", "198.51.100.0/23", "203.0.112.0/20"]`. Keep real addresses
+in the environment variable. Change this value and dispatch **Home Movies
+application infrastructure** on `main` with operation **plan**, then **apply**
+to update Bastion in place without a VM replacement or application image build.
+Removing a CIDR affects new sessions; terminate existing Bastion sessions to
+revoke their access immediately. See [VM maintenance](vm-maintenance.md).
 
 Private bootstrap metadata in the state bucket supplies the Vault, key and runtime
 dynamic-group identifiers. Terraform application outputs are stored privately in
@@ -172,9 +180,9 @@ Repository variables control opt-in workflows; unset flags leave jobs disabled:
 | `ENABLE_HOME_MOVIES_APP_DEPLOY` | `true` |
 
 First verify WIF, then run infrastructure with operation `plan`. Review the
-aggregate change counts and choose `apply` when ready. There is no per-run approval
-gate; the selected operation persists for future matching pushes. VM deletion is
-protected. Cloud-init is launch-only: changing its template provisions future
+aggregate change counts and choose `apply` when ready. Manual runs use the selected
+operation for that run only; matching pushes use `HOME_MOVIES_APPLICATION_OPERATION`.
+There is no per-run approval gate. VM deletion is protected. Cloud-init is launch-only: changing its template provisions future
 hosts correctly but does not replace or reconfigure an existing VM. See the
 [operator guide](operators-guide.md) for host maintenance.
 

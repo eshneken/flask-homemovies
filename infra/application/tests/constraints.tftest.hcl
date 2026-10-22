@@ -1,5 +1,10 @@
 mock_provider "oci" {}
 override_resource {
+  target          = oci_bastion_bastion.maintenance
+  values          = { private_endpoint_ip_address = "192.0.2.10" }
+  override_during = plan
+}
+override_resource {
   target          = oci_vault_secret.runtime
   values          = { id = "test-secret" }
   override_during = plan
@@ -16,7 +21,7 @@ variables {
   vault_key_ocid        = "test-key"
   hostname              = "movies.example.com"
   acme_email            = "admin@example.com"
-  bastion_client_cidr   = "192.0.2.1/32"
+  bastion_client_cidrs  = ["192.0.2.1/32", "198.51.100.0/23", "203.0.112.0/20"]
   image_repository      = "ghcr.io/example/home-movies"
 }
 override_data {
@@ -73,8 +78,8 @@ run "free_budget_and_private_host" {
 run "restricted_maintenance" {
   command = plan
   assert {
-    condition     = oci_bastion_bastion.maintenance.max_session_ttl_in_seconds == 3600 && one(oci_bastion_bastion.maintenance.client_cidr_block_allow_list) == "192.0.2.1/32"
-    error_message = "Maintenance access must be limited to the operator IP and one-hour sessions."
+    condition     = oci_bastion_bastion.maintenance.max_session_ttl_in_seconds == 3600 && toset(oci_bastion_bastion.maintenance.client_cidr_block_allow_list) == toset(var.bastion_client_cidrs)
+    error_message = "Maintenance access must use exactly the configured CIDRs and one-hour sessions."
   }
   assert {
     condition     = contains([for p in oci_core_instance.web.agent_config[0].plugins_config : p.name if p.desired_state == "ENABLED"], "Bastion")
@@ -83,6 +88,10 @@ run "restricted_maintenance" {
   assert {
     condition     = oci_core_network_security_group_security_rule.ssh_from_bastion.tcp_options[0].destination_port_range[0].min == 22 && oci_core_network_security_group_security_rule.ssh_from_bastion.tcp_options[0].destination_port_range[0].max == 22
     error_message = "The maintenance ingress rule must expose only SSH."
+  }
+  assert {
+    condition     = oci_core_network_security_group_security_rule.ssh_from_bastion.source == "${oci_bastion_bastion.maintenance.private_endpoint_ip_address}/32"
+    error_message = "SSH must enter only from the managed Bastion endpoint, never directly from public client CIDRs."
   }
   assert {
     condition = (length(oci_core_security_list.application.ingress_security_rules) == 0 &&
@@ -96,9 +105,37 @@ run "restricted_maintenance" {
 run "reject_broad_maintenance_allowlist" {
   command = plan
   variables {
-    bastion_client_cidr = "0.0.0.0/0"
+    bastion_client_cidrs = ["192.0.2.1/32", "0.0.0.0/0"]
   }
-  expect_failures = [var.bastion_client_cidr]
+  expect_failures = [var.bastion_client_cidrs]
+}
+run "reject_empty_maintenance_allowlist" {
+  command = plan
+  variables {
+    bastion_client_cidrs = []
+  }
+  expect_failures = [var.bastion_client_cidrs]
+}
+run "reject_invalid_maintenance_cidr" {
+  command = plan
+  variables {
+    bastion_client_cidrs = ["not-a-cidr"]
+  }
+  expect_failures = [var.bastion_client_cidrs]
+}
+run "reject_ipv6_maintenance_cidr" {
+  command = plan
+  variables {
+    bastion_client_cidrs = ["2001:db8::/32"]
+  }
+  expect_failures = [var.bastion_client_cidrs]
+}
+run "reject_noncanonical_maintenance_cidr" {
+  command = plan
+  variables {
+    bastion_client_cidrs = ["192.0.2.1/24"]
+  }
+  expect_failures = [var.bastion_client_cidrs]
 }
 run "reject_wrong_compartment" {
   command = plan
