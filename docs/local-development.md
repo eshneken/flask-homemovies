@@ -11,6 +11,7 @@ cloud credentials nor network access after installing dependencies.
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
+python -m pip --disable-pip-version-check install --no-deps -r python_app/requirements-bootstrap.txt
 python -m pip install -r scripts/requirements-test.txt
 umask 077
 mkdir -p .local

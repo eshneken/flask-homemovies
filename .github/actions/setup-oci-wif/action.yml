@@ -33,6 +33,7 @@ runs:
       run: |
         set -euo pipefail
         python3 -m venv "$RUNNER_TEMP/home-movies-wif-venv"
+        "$RUNNER_TEMP/home-movies-wif-venv/bin/python" -m pip --disable-pip-version-check install --no-deps -r python_app/requirements-bootstrap.txt
         "$RUNNER_TEMP/home-movies-wif-venv/bin/python" -m pip install --quiet -r scripts/requirements-wif.txt
         echo "HM_WIF_PYTHON=$RUNNER_TEMP/home-movies-wif-venv/bin/python" >> "$GITHUB_ENV"
     - name: Exchange and verify OCI workload identity

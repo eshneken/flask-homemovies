@@ -26,12 +26,14 @@ be retained as the manual upload key. An upload key restricted to a test-only
 filename prefix cannot upload normal movie folders. Keep the upload key separate
 from the read-only playback key and use it only on the operator's computer.
 
-Install the CLI once, in an environment outside the movie folder:
+From the repository root, install the CLI once in an environment outside the
+movie folder:
 
 ```bash
 python3 -m venv "$HOME/.venvs/home-movies-b2"
 source "$HOME/.venvs/home-movies-b2/bin/activate"
-python -m pip install 'b2>=4.4,<5'
+python -m pip --disable-pip-version-check install --no-deps -r python_app/requirements-bootstrap.txt
+python -m pip install 'certifi>=2026.10.19' 'b2>=4.4,<5'
 b2 version
 ```
 

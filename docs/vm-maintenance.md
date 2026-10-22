@@ -108,7 +108,41 @@ command and quote the path inside the ProxyCommand as well. Session creation doe
 not renew an existing session automatically. If it expires during maintenance,
 create a new one; changing the lifetime variable does not extend the old session.
 
-## 4. Finish and troubleshoot
+## 4. Patch the host and application trust stores
+
+Run host maintenance through the managed SSH session as `opc`:
+
+```bash
+sudo dnf update -y
+sudo update-ca-trust extract
+rpm -q ca-certificates
+sudo dnf needs-restarting -r
+```
+
+If a reboot is required, reboot during maintenance, reconnect and confirm
+`home-movies` and `caddy` are active and the public HTTPS health check succeeds.
+Host updates do not update the Python application container. Rebuild and deploy
+the application separately; the build refreshes its Debian certificates and
+bootstraps pip from a SHA256-pinned wheel before installing dependencies.
+
+For the October 2026 emSign incident, every application, test and operator venv
+needs pip >= 26.2.2 and certifi >= 2026.10.19. From the repository root, activate
+the environment, then run:
+
+```bash
+python -m pip --disable-pip-version-check install --no-deps -r python_app/requirements-bootstrap.txt
+python -m pip install --upgrade 'certifi>=2026.10.19'
+python -m pip --version
+python -c 'import certifi; print(certifi.__version__)'
+```
+
+Updating certifi does not replace pip's independent bundled certificates.
+The [Python security advisory](https://discuss.python.org/t/109576) describes
+the incident and secure bootstrap. GitHub jobs refresh runner certificates and
+bootstrap pip in every newly created environment. Image builds use `--pull
+--no-cache` so rebuilding does not reuse an old base or certificate-install layer.
+
+## 5. Finish and troubleshoot
 
 Exit SSH, then delete the session in the console or on the laptop:
 
