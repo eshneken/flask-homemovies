@@ -66,7 +66,12 @@ def validate_claims(token, env, now):
             raise ValueError()
         claims = json.loads(base64.urlsafe_b64decode(parts[1] + '=' * (-len(parts[1]) % 4)))
         ref = require(env, 'GITHUB_REF')
-        if not ref.startswith('refs/heads/') or env.get('GITHUB_EVENT_NAME') not in ('push', 'workflow_dispatch'):
+        scheduled = env.get('GITHUB_EVENT_NAME') == 'schedule'
+        workflow = require(env, 'GITHUB_REPOSITORY') + '/.github/workflows/oci-os-maintenance.yml@refs/heads/main'
+        if scheduled and (ref != 'refs/heads/main' or env.get('HM_GITHUB_ENVIRONMENT') != 'homemovies-infrastructure'
+                          or claims.get('workflow_ref') != workflow):
+            raise ValueError()
+        if not ref.startswith('refs/heads/') or env.get('GITHUB_EVENT_NAME') not in ('push', 'workflow_dispatch', 'schedule'):
             raise ValueError()
         expected = {
             'iss': 'https://token.actions.githubusercontent.com',

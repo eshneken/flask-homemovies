@@ -40,6 +40,14 @@ resource "oci_core_route_table" "application" {
     destination_type  = "CIDR_BLOCK"
     network_entity_id = oci_core_nat_gateway.application.id
   }
+  dynamic "route_rules" {
+    for_each = var.osmh_enabled ? [1] : []
+    content {
+      destination       = one(data.oci_core_services.oracle_network[0].services).cidr_block
+      destination_type  = "SERVICE_CIDR_BLOCK"
+      network_entity_id = oci_core_service_gateway.operating_system[0].id
+    }
+  }
 }
 # No subnet-wide ingress. The managed Bastion endpoint has no NSG and needs
 # outbound SSH to this private subnet; VM ingress remains restricted by its NSG.

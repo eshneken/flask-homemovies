@@ -21,6 +21,55 @@ INPUTS = {
     'bastion_client_cidrs': 'OCI_BASTION_CLIENT_CIDRS',
 }
 
+OSMH_INPUTS = {
+    'osmh_enabled': ('OCI_OSMH_ENABLED', 'false'),
+    'osmh_register_instance': ('OCI_OSMH_REGISTER_INSTANCE', 'false'),
+    'osmh_updates_enabled': ('OCI_OSMH_UPDATES_ENABLED', 'false'),
+    'osmh_update_recurring_rule': ('OCI_OSMH_UPDATE_RECURRING_RULE', 'FREQ=DAILY;INTERVAL=1'),
+    'osmh_update_start': ('OCI_OSMH_UPDATE_START', ''),
+    'osmh_update_hour_utc': ('OCI_OSMH_UPDATE_HOUR_UTC', '8'),
+    'osmh_update_minute_utc': ('OCI_OSMH_UPDATE_MINUTE_UTC', '0'),
+}
+
+
+def osmh_settings(env):
+    """Reject malformed switches instead of silently opting into host management."""
+    settings = {key: env.get(name) or default for key, (name, default) in OSMH_INPUTS.items()}
+    for key in ('osmh_enabled', 'osmh_register_instance', 'osmh_updates_enabled'):
+        if settings[key] not in ('true', 'false'):
+            raise WifError('OS Management Hub switches must be true or false.')
+    if settings['osmh_register_instance'] == 'true' and settings['osmh_enabled'] != 'true':
+        raise WifError('Prepare OS Management Hub before registering the instance.')
+    if settings['osmh_updates_enabled'] == 'true' and settings['osmh_register_instance'] != 'true':
+        raise WifError('Register the instance before scheduling updates.')
+    if not settings['osmh_update_start']:
+        del settings['osmh_update_start']  # Use Terraform's null default, never an empty timestamp.
+    return settings
+
+
+def verify_osmh_enrollment(plan, config, signer, settings):
+    """Require a previously enrolled, active VM with only the reviewed source before scheduling."""
+    if settings['osmh_updates_enabled'] != 'true':
+        return
+    resources = {r['address']: r['values'] for r in plan.get('planned_values', {}).get('root_module', {}).get('resources', [])}
+    instance = resources.get('oci_core_instance.web', {}).get('id')
+    group = resources.get('oci_os_management_hub_managed_instance_group.operating_system[0]', {}).get('id')
+    source = resources.get('oci_os_management_hub_software_source.operating_system[0]', {}).get('id')
+    if not all((instance, group, source)):
+        raise WifError('Apply preparation and registration before scheduling OS updates.')
+    managed = oci.os_management_hub.ManagedInstanceClient(config, signer=signer).get_managed_instance(instance).data
+    if (managed.status != 'NORMAL' or not managed.managed_instance_group
+            or managed.managed_instance_group.id != group
+            or {s.id for s in (managed.software_sources or [])} != {source}):
+        raise WifError('OS update scheduling requires active registration with only the reviewed OS source.')
+    content = oci.os_management_hub.SoftwareSourceClient(config, signer=signer).get_software_source(source).data
+    filters = getattr(content, 'custom_software_source_filter', None)
+    if (content.software_source_type != 'CUSTOM' or not content.is_automatically_updated
+            or content.is_auto_resolve_dependencies or not filters
+            or not any(f.filter_type == 'EXCLUDE' and f.package_name_pattern == 'caddy*'
+                       for f in (filters.package_filters or []))):
+        raise WifError('The live OS source must refresh automatically and explicitly exclude Caddy.')
+
 
 def client(env):
     """Build a security-token signer from the runner's ephemeral OCI profile."""
@@ -37,9 +86,11 @@ def run(env, root, directory, operation):
     destructive plans and publish successful outputs in the state bucket.
     """
     settings = {key: require(env, name) for key, name in INPUTS.items()}
+    settings.update(osmh_settings(env))
     settings['state_bucket_name'] = require(env, 'OCI_STATE_BUCKET_NAME')
-    for value in settings.values():
-        mask(value)
+    for name, value in settings.items():
+        if name not in OSMH_INPUTS:
+            mask(value)
     config, signer = client(env)
     identity = oci.identity.IdentityClient(config, signer=signer)
     compartment = identity.get_compartment(settings['compartment_ocid']).data
@@ -63,7 +114,7 @@ def run(env, root, directory, operation):
     shutil.copyfile(root / 'scripts' / 'vm_deploy.py', directory / 'scripts' / 'vm_deploy.py')
     tf_env = dict(env, TF_IN_AUTOMATION='true', TF_VAR_oci_auth='SecurityToken',
                   TF_VAR_config_file_profile='HOMEMOVIES')
-    for name in INPUTS:
+    for name in set(INPUTS) | set(OSMH_INPUTS).intersection(settings):
         tf_env['TF_VAR_' + name] = settings[name]
     for name in ('vault_ocid', 'vault_key_ocid', 'runtime_dynamic_group_ocid'):
         tf_env['TF_VAR_' + name] = metadata[name]
@@ -74,7 +125,9 @@ def run(env, root, directory, operation):
                                      'auth': 'SecurityToken', 'config_file_profile': 'HOMEMOVIES'}))
     terraform(module, ['init', '-reconfigure', '-input=false', '-lockfile=readonly', '-backend-config=' + str(backend)], tf_env)
     terraform(module, ['plan', '-input=false', '-no-color', '-out=review.tfplan'], tf_env)
-    changes = summarize(json.loads(terraform(module, ['show', '-json', 'review.tfplan'], tf_env)))
+    plan = json.loads(terraform(module, ['show', '-json', 'review.tfplan'], tf_env))
+    changes = summarize(plan)
+    verify_osmh_enrollment(plan, config, signer, settings)
     if operation == 'apply':
         terraform(module, ['apply', '-input=false', '-no-color', 'review.tfplan'], tf_env)
         outputs = json.loads(terraform(module, ['output', '-json'], tf_env))

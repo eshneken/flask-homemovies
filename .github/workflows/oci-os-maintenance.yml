@@ -1,0 +1,93 @@
+name: Home Movies conditional overnight reboot
+on:
+  workflow_dispatch:
+  schedule:
+    # Hourly dispatch permits configurable UTC windows without editing this file.
+    - cron: '23 * * * *'
+permissions:
+  contents: read
+jobs:
+  eligibility:
+    if: github.ref == 'refs/heads/main'
+    environment: homemovies-infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.window.outputs.run }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Check opt-in and window without acquiring the infrastructure lock
+        id: window
+        env:
+          OCI_OSMH_REBOOT_ENABLED: ${{ vars.OCI_OSMH_REBOOT_ENABLED }}
+          OCI_OSMH_UPDATES_ENABLED: ${{ vars.OCI_OSMH_UPDATES_ENABLED }}
+          OCI_OSMH_REBOOT_HOUR_UTC: ${{ vars.OCI_OSMH_REBOOT_HOUR_UTC }}
+          OCI_OSMH_REBOOT_WINDOW_HOURS: ${{ vars.OCI_OSMH_REBOOT_WINDOW_HOURS }}
+        run: python3 scripts/oci_os_maintenance.py window
+  maintenance:
+    needs: eligibility
+    if: github.ref == 'refs/heads/main' && needs.eligibility.outputs.run == 'true'
+    concurrency:
+      group: home-movies-infrastructure
+      cancel-in-progress: false
+    environment: homemovies-infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      HM_GITHUB_ENVIRONMENT: homemovies-infrastructure
+      OCI_OSMH_REBOOT_ENABLED: ${{ vars.OCI_OSMH_REBOOT_ENABLED }}
+      OCI_OSMH_UPDATES_ENABLED: ${{ vars.OCI_OSMH_UPDATES_ENABLED }}
+      OCI_OSMH_REBOOT_HOUR_UTC: ${{ vars.OCI_OSMH_REBOOT_HOUR_UTC }}
+      OCI_OSMH_REBOOT_WINDOW_HOURS: ${{ vars.OCI_OSMH_REBOOT_WINDOW_HOURS }}
+      OCI_OSMH_UPDATE_RECURRING_RULE: ${{ vars.OCI_OSMH_UPDATE_RECURRING_RULE }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Check maintenance window before requesting credentials
+        id: window
+        run: python3 scripts/oci_os_maintenance.py window
+      - name: Refresh runner CA certificates
+        if: steps.window.outputs.run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --only-upgrade ca-certificates
+          sudo update-ca-certificates
+      - name: Mask private configuration before action inputs are logged
+        if: steps.window.outputs.run == 'true'
+        env:
+          OCI_PRIVATE_CONFIG_MASKS: ${{ secrets.OCI_PRIVATE_CONFIG_MASKS }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/home-movies-mask-venv"
+          "$RUNNER_TEMP/home-movies-mask-venv/bin/python" -m pip --disable-pip-version-check install --no-deps -r python_app/requirements-bootstrap.txt
+          "$RUNNER_TEMP/home-movies-mask-venv/bin/python" -m pip install --quiet -r scripts/requirements-wif.txt
+          "$RUNNER_TEMP/home-movies-mask-venv/bin/python" scripts/mask_configuration.py
+      - uses: ./.github/actions/setup-oci-wif
+        if: steps.window.outputs.run == 'true'
+        with:
+          domain-url: ${{ vars.OCI_WIF_DOMAIN_URL }}
+          client-id: ${{ vars.OCI_WIF_CLIENT_ID }}
+          client-secret: ${{ secrets.OCI_WIF_CLIENT_SECRET }}
+          audience: ${{ vars.OCI_WIF_AUDIENCE }}
+          service-user-ocid: ${{ vars.OCI_WIF_SERVICE_USER_OCID }}
+          tenancy-ocid: ${{ vars.OCI_TENANCY_OCID }}
+          region: ${{ vars.OCI_REGION }}
+          environment: homemovies-infrastructure
+      - name: Reboot only when needed after successful OS patching
+        if: steps.window.outputs.run == 'true'
+        env:
+          OCI_STATE_BUCKET_NAME: ${{ vars.OCI_STATE_BUCKET_NAME }}
+          OCI_COMPARTMENT_OCID: ${{ vars.OCI_COMPARTMENT_OCID }}
+          APP_HOSTNAME: ${{ vars.APP_HOSTNAME }}
+        run: '"$HM_WIF_PYTHON" scripts/oci_os_maintenance.py'
+      - name: Remove ephemeral OCI credentials
+        if: always()
+        run: |
+          if [ -n "${HM_WIF_PYTHON:-}" ]; then
+            "$HM_WIF_PYTHON" scripts/oci_wif.py cleanup
+          fi

@@ -1,5 +1,9 @@
 # GitHub Actions setup
 
+For staged OS-only host patching and the `OCI_OSMH_*` environment variables, see
+[OS Management Hub setup](os-management.md). Caddy and the application image are
+outside that patching integration.
+
 GitHub Actions runs offline checks, provisions application infrastructure with
 Terraform and publishes/deploys immutable ARM64 images. Repository workflows and
 `.github/actions/setup-oci-wif/` define the implementation. Configure real values
@@ -14,6 +18,7 @@ addresses or credentials in these files.
 | `oci-wif-verify.yml` | Enabled branch pushes/manual runs: verify the production federation identity | Short-lived OCI session via WIF |
 | `oci-application-infra.yml` | Enabled `main` pushes affecting infrastructure/helpers, or manual runs on `main`: Terraform plan/apply | Infrastructure WIF identity |
 | `oci-app-deploy.yml` | Enabled `main` pushes/manual runs on `main`: shared checks, ARM64 tests/build, GHCR publish, VM deployment | GitHub job token for GHCR; deployment WIF identity for OCI |
+| `oci-os-maintenance.yml` | Hourly schedule/manual runs on `main`: check opt-in and UTC window, then conditionally reboot after successful OS patching | Infrastructure WIF identity, only after eligibility and window checks |
 | `oci-infra-bootstrap.yml` | Explicitly enabled initial setup: establish IAM/state/Vault foundation | Temporary operator bootstrap session; disable outside setup |
 
 Terraform and builds run on GitHub-hosted runners. The image build runs on an
@@ -22,8 +27,10 @@ Run Command; the agent on the private VM runs the restricted root deployment
 helper. That helper pulls the approved digest, atomically records it, restarts
 `home-movies.service` and checks loopback health. No SSH key is used by CI, and
 neither movies nor runtime authentication settings pass through the runner.
-Infrastructure and application jobs have separate concurrency groups; avoid
-manually rebooting the VM while a release is running.
+Infrastructure changes, application deployment and eligible OS maintenance share
+the `home-movies-infrastructure` concurrency group. The maintenance eligibility
+job checks opt-in and the UTC window without acquiring that lock. Avoid manually
+rebooting the VM while a release is running.
 
 ## 1. Prepare OCI identities and resources
 

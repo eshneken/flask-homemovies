@@ -1,5 +1,9 @@
 # Home Movies infrastructure
 
+[OS Management Hub](../docs/os-management.md) adds opt-in host patching through
+private service networking, project-scoped IAM and a Caddy-excluding OS source.
+Enrollment and recurring updates use separate GitHub configuration switches.
+
 The application uses Terraform and GitHub workload identity federation. Supply
 the owner-created application compartment name and OCID through GitHub
 environment variables. These modules manage only this application.

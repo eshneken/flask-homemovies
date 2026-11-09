@@ -21,6 +21,8 @@ resource "oci_identity_policy" "automation" {
     "Allow group id ${var.infrastructure_group_ocid} to manage all-resources in compartment id ${var.compartment_ocid}",
     "Allow group id ${var.infrastructure_group_ocid} to read compartments in tenancy where target.compartment.id = '${var.compartment_ocid}'",
     "Allow group id ${var.infrastructure_group_ocid} to read objectstorage-namespaces in tenancy",
+    "Allow group id ${var.infrastructure_group_ocid} to read osmh-profiles in tenancy where target.profile.compartment.id = '${var.tenancy_ocid}'",
+    "Allow group id ${var.infrastructure_group_ocid} to read osmh-software-sources in tenancy where target.softwareSource.compartment.id = '${var.tenancy_ocid}'",
     "Allow group id ${var.infrastructure_group_ocid} to manage dynamic-groups in tenancy where target.dynamic-group.id = '${local.runtime_dynamic_group_ocid}'",
     "Allow group id ${var.deployment_group_ocid} to read objectstorage-namespaces in tenancy",
     "Allow group id ${var.deployment_group_ocid} to read instances in compartment id ${var.compartment_ocid}",
