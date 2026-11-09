@@ -1,6 +1,13 @@
 # Opt in in stages: prepare resources, register the VM, then enable update jobs.
 # No service-provided/default profile: it could enroll unrelated instances or
 # attach content outside the reviewed OS-only source.
+locals {
+  osmh_ksplice_sources = toset(["ol9_ksplice-aarch64", "ol9_aarch64_userspace_ksplice-aarch64"])
+  osmh_ksplice_source_ids = var.osmh_enabled ? {
+    for name in local.osmh_ksplice_sources : name => oci_os_management_hub_software_source.vendor[name].id
+  } : {}
+}
+
 data "oci_os_management_hub_software_sources" "vendor" {
   for_each             = var.osmh_enabled ? var.osmh_vendor_sources : toset([])
   compartment_id       = var.tenancy_ocid
@@ -29,7 +36,7 @@ resource "oci_os_management_hub_software_source" "operating_system" {
   # Oracle documents that automatic dependency resolution can override excludes.
   is_auto_resolve_dependencies = false
   dynamic "vendor_software_sources" {
-    for_each = oci_os_management_hub_software_source.vendor
+    for_each = { for name, source in oci_os_management_hub_software_source.vendor : name => source if !contains(local.osmh_ksplice_sources, name) }
     content {
       id           = vendor_software_sources.value.id
       display_name = vendor_software_sources.value.display_name
@@ -52,6 +59,17 @@ resource "oci_os_management_hub_managed_instance_group" "operating_system" {
   arch_type           = "AARCH64"
   location            = "OCI_COMPUTE"
   software_source_ids = [oci_os_management_hub_software_source.operating_system[0].id]
+  # This API field is creation-only; the explicit attachment action owns later
+  # Ksplice additions. Live scheduling/reboot guards enforce exact membership.
+  lifecycle { ignore_changes = [software_source_ids] }
+}
+
+resource "oci_os_management_hub_managed_instance_group_attach_software_sources_management" "ksplice" {
+  count                     = var.osmh_enabled ? 1 : 0
+  managed_instance_group_id = oci_os_management_hub_managed_instance_group.operating_system[0].id
+  software_sources          = values(local.osmh_ksplice_source_ids)
+  work_request_details { display_name = "home-movies-enable-ksplice-content" }
+  lifecycle { prevent_destroy = true }
 }
 
 resource "oci_os_management_hub_profile" "operating_system" {
@@ -62,6 +80,7 @@ resource "oci_os_management_hub_profile" "operating_system" {
   registration_type         = "OCI_LINUX"
   is_default_profile        = false
   managed_instance_group_id = oci_os_management_hub_managed_instance_group.operating_system[0].id
+  depends_on                = [oci_os_management_hub_managed_instance_group_attach_software_sources_management.ksplice]
 }
 
 resource "oci_identity_policy" "osmh_instance" {
@@ -102,6 +121,7 @@ resource "oci_os_management_hub_scheduled_job" "operating_system" {
   recurring_rule       = "${var.osmh_update_recurring_rule};BYHOUR=${var.osmh_update_hour_utc};BYMINUTE=${var.osmh_update_minute_utc};BYSECOND=0"
   time_next_execution  = var.osmh_update_start
   retry_intervals      = [5, 5, 5]
+  # Both named Ksplice repositories are attached alongside the filtered OS source.
   operations { operation_type = "UPDATE_ALL" }
   # The service advances this after every execution. Do not reset it to the
   # original start on unrelated applies; change hours/minutes via the rule.

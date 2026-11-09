@@ -1,4 +1,8 @@
 mock_provider "oci" {
+  mock_resource "oci_os_management_hub_managed_instance_group" {
+    defaults        = { id = "test-os-group" }
+    override_during = plan
+  }
   mock_resource "oci_os_management_hub_software_source" {
     defaults        = { display_name = "test-vendor-name" }
     override_during = plan
@@ -45,12 +49,16 @@ run "prepare_os_only_content" {
   command = plan
   variables { osmh_enabled = true }
   assert {
-    condition     = length(oci_os_management_hub_software_source.vendor) == 5 && oci_os_management_hub_software_source.operating_system[0].software_source_type == "CUSTOM"
+    condition     = length(oci_os_management_hub_software_source.vendor) == 7 && oci_os_management_hub_software_source.operating_system[0].software_source_type == "CUSTOM"
     error_message = "Prepare only the reviewed Oracle OS repositories, never Caddy COPR."
   }
   assert {
     condition     = length(oci_os_management_hub_software_source.operating_system[0].vendor_software_sources) == 5 && alltrue([for source in oci_os_management_hub_software_source.operating_system[0].vendor_software_sources : source.display_name == "test-vendor-name"])
     error_message = "OCI requires each custom-source vendor reference to include its display name as well as its ID."
+  }
+  assert {
+    condition     = oci_os_management_hub_managed_instance_group.operating_system[0].software_source_ids == tolist([oci_os_management_hub_software_source.operating_system[0].id]) && toset(oci_os_management_hub_managed_instance_group_attach_software_sources_management.ksplice[0].software_sources) == toset([for name in ["ol9_ksplice-aarch64", "ol9_aarch64_userspace_ksplice-aarch64"] : oci_os_management_hub_software_source.vendor[name].id]) && oci_os_management_hub_managed_instance_group_attach_software_sources_management.ksplice[0].managed_instance_group_id == oci_os_management_hub_managed_instance_group.operating_system[0].id
+    error_message = "Attach only the filtered OS source and the two named Oracle Ksplice repositories."
   }
   assert {
     condition     = oci_os_management_hub_software_source.operating_system[0].is_automatically_updated && !oci_os_management_hub_software_source.operating_system[0].is_auto_resolve_dependencies && one(oci_os_management_hub_software_source.operating_system[0].custom_software_source_filter[0].package_filters).filter_type == "EXCLUDE" && one(oci_os_management_hub_software_source.operating_system[0].custom_software_source_filter[0].package_filters).package_name_pattern == "caddy*"
@@ -122,5 +130,11 @@ run "reject_missing_schedule_start" {
 run "reject_caddy_or_wrong_architecture_source" {
   command = plan
   variables { osmh_vendor_sources = ["caddy-copr", "ol9_uekr8-x86_64"] }
+  expect_failures = [var.osmh_vendor_sources]
+}
+
+run "reject_ksplice_without_required_content" {
+  command = plan
+  variables { osmh_vendor_sources = ["ol9_baseos_latest-aarch64", "ol9_appstream-aarch64", "ol9_uekr8-aarch64"] }
   expect_failures = [var.osmh_vendor_sources]
 }

@@ -4,6 +4,11 @@ hostname: homemovies-app
 package_update: true
 package_upgrade: true
 write_files:
+  - path: /etc/dnf/plugins/post-transaction-actions.d/home-movies-network.action
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: ${post_update_actions_b64}
   - path: /etc/caddy/Caddyfile
     permissions: '0644'
     content: |
@@ -77,7 +82,7 @@ write_files:
       RuntimeMaxUse=32M
       MaxRetentionSec=14day
 runcmd:
-  - [dnf, install, -y, podman, dnf-plugins-core, policycoreutils, firewalld]
+  - [dnf, install, -y, podman, dnf-plugins-core, python3-dnf-plugin-post-transaction-actions, policycoreutils, firewalld]
   - [dnf, copr, enable, -y, '@caddy/caddy', epel-9-aarch64]
   - [dnf, install, -y, caddy]
   - [install, -d, -m, '0700', /etc/home-movies]

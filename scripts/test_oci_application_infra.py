@@ -40,30 +40,48 @@ class ApplicationInfrastructureTests(unittest.TestCase):
         addresses = {'oci_core_instance.web': 'vm',
                      'oci_os_management_hub_managed_instance_group.operating_system[0]': 'group',
                      'oci_os_management_hub_software_source.operating_system[0]': 'os-source'}
+        ksplice = dict(zip(infrastructure.KSPLICE_SOURCES, ['ksplice-kernel', 'ksplice-userspace']))
+        addresses.update({f'oci_os_management_hub_software_source.vendor["{name}"]': identifier
+                          for name, identifier in ksplice.items()})
         plan = {'planned_values': {'root_module': {'resources': [
             {'address': a, 'values': {'id': v}} for a, v in addresses.items()]}}}
         settings = dict(osmh_updates_enabled='true')
         with self.assertRaises(WifError):
             infrastructure.verify_osmh_enrollment({}, {}, None, settings)
+        expected = ['os-source', *ksplice.values()]
         for status, group, sources, passed in [
-                ('NORMAL', 'group', ['os-source'], True), ('UNREACHABLE', 'group', ['os-source'], False),
-                ('NORMAL', 'other', ['os-source'], False), ('NORMAL', None, ['os-source'], False),
-                ('NORMAL', 'group', ['os-source', 'caddy-source'], False)]:
+                ('NORMAL', 'group', expected, True), ('UNREACHABLE', 'group', expected, False),
+                ('NORMAL', 'other', expected, False), ('NORMAL', None, expected, False),
+                ('NORMAL', 'group', [*expected, 'caddy-source'], False),
+                ('NORMAL', 'group', ['os-source'], False)]:
             api = Mock()
             api.get_managed_instance.return_value.data = NS(status=status,
                 managed_instance_group=NS(id=group) if group else None,
                 software_sources=[NS(id=s) for s in sources])
-            source_api = Mock()
-            source_api.get_software_source.return_value.data = NS(software_source_type='CUSTOM',
-                is_automatically_updated=True, is_auto_resolve_dependencies=False,
+            custom = NS(software_source_type='CUSTOM', is_automatically_updated=True,
+                is_auto_resolve_dependencies=False,
                 custom_software_source_filter=NS(package_filters=[NS(filter_type='EXCLUDE', package_name_pattern='caddy*')]))
+            vendors = {identifier: NS(software_source_type='VENDOR', display_name=name,
+                vendor_name='ORACLE', os_family='ORACLE_LINUX_9', arch_type='AARCH64')
+                for name, identifier in ksplice.items()}
+            source_api = Mock()
+            source_api.get_software_source.side_effect = lambda identifier: NS(data=custom if identifier=='os-source' else vendors[identifier])
             with patch.object(infrastructure.oci.os_management_hub, 'ManagedInstanceClient', return_value=api), \
                     patch.object(infrastructure.oci.os_management_hub, 'SoftwareSourceClient', return_value=source_api):
                 if passed:
                     infrastructure.verify_osmh_enrollment(plan, {}, None, settings)
-                    source_api.get_software_source.return_value.data.is_auto_resolve_dependencies = True
+                    custom.is_auto_resolve_dependencies = True
                     with self.assertRaises(WifError):
                         infrastructure.verify_osmh_enrollment(plan, {}, None, settings)
+                    custom.is_auto_resolve_dependencies = False
+                    vendor = vendors['ksplice-userspace']
+                    for field, value in [('display_name','caddy-copr'),('software_source_type','THIRD_PARTY'),
+                                         ('vendor_name','OTHER'),('os_family','ORACLE_LINUX_8'),('arch_type','X86_64')]:
+                        original = getattr(vendor, field)
+                        setattr(vendor, field, value)
+                        with self.assertRaises(WifError):
+                            infrastructure.verify_osmh_enrollment(plan, {}, None, settings)
+                        setattr(vendor, field, original)
                 else:
                     with self.assertRaises(WifError):
                         infrastructure.verify_osmh_enrollment(plan, {}, None, settings)

@@ -63,6 +63,22 @@ def maintain(env, outputs, compute, managed, jobs, work, reboot_details, now):
     if not requests:
         return 'waiting for first update job'
     update = work.get_work_request(requests[0].id).data
+    # OCI expands scheduled updates into nested work requests. Resolve
+    # the overall execution so one successful child cannot authorize a reboot.
+    seen = {requests[0].id}
+    for _ in range(10):
+        if update.compartment_id != compartment or update.initiator_id != job_id:
+            raise ValueError('The OS update execution belongs to a different job or compartment.')
+        if not update.parent_id:
+            break
+        if update.parent_id in seen:
+            raise ValueError('The OS update execution has a cyclic parent chain.')
+        seen.add(update.parent_id)
+        update = work.get_work_request(update.parent_id).data
+    else:
+        raise ValueError('The OS update execution parent chain is too deep.')
+    if update.operation_type != 'UPDATE_ALL_PACKAGES':
+        raise ValueError('The overall execution must be an OS package update.')
     if update.status != 'SUCCEEDED' or not update.time_finished:
         raise ValueError('The latest OS update has not succeeded; reboot deferred.')
     age = now - update.time_finished
@@ -127,7 +143,9 @@ def main():
             {'address': address, 'values': {'id': outputs[key]}} for address, key in [
                 ('oci_core_instance.web', 'instance_ocid'),
                 ('oci_os_management_hub_managed_instance_group.operating_system[0]', 'osmh_group_ocid'),
-                ('oci_os_management_hub_software_source.operating_system[0]', 'osmh_source_ocid')]]}}}
+                ('oci_os_management_hub_software_source.operating_system[0]', 'osmh_source_ocid')]] + [
+            {'address': f'oci_os_management_hub_software_source.vendor["{name}"]', 'values': {'id': identifier}}
+            for name, identifier in outputs.get('osmh_ksplice_source_ocids', {}).items()]}}}
         verify_osmh_enrollment(plan, config, signer, {'osmh_updates_enabled': 'true'})
         result = maintain(env, outputs, oci.core.ComputeClient(config, signer=signer),
             oci.os_management_hub.ManagedInstanceClient(config, signer=signer),

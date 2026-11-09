@@ -39,3 +39,8 @@ output "osmh_update_job_ocid" {
   value     = try(oci_os_management_hub_scheduled_job.operating_system[0].id, null)
   sensitive = true
 }
+
+output "osmh_ksplice_source_ocids" {
+  value     = local.osmh_ksplice_source_ids
+  sensitive = true
+}

@@ -17,7 +17,15 @@ import oci_os_maintenance as maintenance
 NOW = datetime(2030, 1, 2, 9, 23, tzinfo=timezone.utc)
 ENV = dict(APP_HOSTNAME='movies.example.com', OCI_OSMH_REBOOT_ENABLED='true', OCI_OSMH_UPDATES_ENABLED='true')
 OUTPUTS = dict(instance_ocid='vm', compartment_ocid='compartment', osmh_group_ocid='group',
-               osmh_source_ocid='source', osmh_update_job_ocid='job')
+               osmh_source_ocid='source', osmh_update_job_ocid='job', osmh_ksplice_source_ocids={
+                   'ol9_ksplice-aarch64':'kernel-source','ol9_aarch64_userspace_ksplice-aarch64':'userspace-source'})
+
+
+def update_result(**changes):
+    values = dict(id='update', status='SUCCEEDED', time_finished=NOW-timedelta(minutes=40),
+                  compartment_id='compartment', initiator_id='job', parent_id=None,
+                  operation_type='UPDATE_ALL_PACKAGES')
+    return NS(**dict(values, **changes))
 
 
 class MaintenanceTests(unittest.TestCase):
@@ -30,7 +38,7 @@ class MaintenanceTests(unittest.TestCase):
         jobs.get_scheduled_job.return_value.data = NS(compartment_id='compartment', managed_instance_ids=['vm'],
             managed_instance_group_ids=[], managed_compartment_ids=[], operations=[NS(operation_type='UPDATE_ALL')])
         work.list_work_requests.side_effect = [NS(data=NS(items=[NS(id='update')])), NS(data=NS(items=[]))]
-        update = NS(id='update', status='SUCCEEDED', time_finished=NOW-timedelta(minutes=40))
+        update = update_result()
         work.get_work_request.side_effect = lambda request: NS(data=update if request == 'update' else NS(status='SUCCEEDED'))
         managed.reboot_managed_instance.return_value.headers = {'opc-work-request-id': 'reboot'}
         return compute, managed, jobs, work
@@ -81,7 +89,9 @@ class MaintenanceTests(unittest.TestCase):
     def test_wrong_patch_job_is_rejected(self):
         for key,value in [('compartment_id','other'), ('managed_instance_ids',['other']),
                           ('managed_instance_group_ids',['group']), ('managed_compartment_ids',['compartment']),
-                          ('operations',[NS(operation_type='REBOOT')])]:
+                          ('operations',[NS(operation_type='REBOOT')]),
+                          ('operations',[]),
+                          ('operations',[NS(operation_type='UPDATE_ALL'),NS(operation_type='UPDATE_KSPLICE_USERSPACE')])]:
             clients=self.clients();setattr(clients[2].get_scheduled_job.return_value.data,key,value)
             with self.assertRaises(ValueError): self.run_maintenance(clients)
 
@@ -91,7 +101,7 @@ class MaintenanceTests(unittest.TestCase):
         for status,finished in [('FAILED',NOW), ('SUCCEEDED',None), ('SUCCEEDED',NOW-timedelta(days=2)),
                                 ('SUCCEEDED',NOW+timedelta(minutes=1))]:
             clients=self.clients();clients[3].get_work_request.side_effect=None
-            clients[3].get_work_request.return_value.data=NS(status=status,time_finished=finished)
+            clients[3].get_work_request.return_value.data=update_result(status=status,time_finished=finished)
             with self.assertRaises(ValueError): self.run_maintenance(clients)
 
     # Value: protects=weekly update freshness permits two-day-old success but rejects nine days;
@@ -103,14 +113,53 @@ class MaintenanceTests(unittest.TestCase):
             with self.subTest(frequency=frequency, age_days=age_days):
                 clients=self.clients();clients[1].get_managed_instance.return_value.data.time_last_boot=NOW
                 clients[3].get_work_request.side_effect=None
-                clients[3].get_work_request.return_value.data=NS(status='SUCCEEDED',
-                    time_finished=NOW-timedelta(days=age_days))
+                clients[3].get_work_request.return_value.data=update_result(time_finished=NOW-timedelta(days=age_days))
                 env=dict(ENV,OCI_OSMH_UPDATE_RECURRING_RULE='FREQ=' + frequency + ';INTERVAL=1')
                 if accepted:
                     self.assertEqual(self.run_maintenance(clients,env),'already rebooted after latest update')
                 else:
                     with self.assertRaises(ValueError): self.run_maintenance(clients,env)
                 clients[1].reboot_managed_instance.assert_not_called()
+
+    def test_successful_child_cannot_authorize_failed_or_pending_overall_update(self):
+        for status in ['FAILED', 'IN_PROGRESS', 'CANCELED']:
+            with self.subTest(status=status):
+                clients=self.clients()
+                results={'update': update_result(parent_id='root'),
+                         'root': update_result(id='root',status=status)}
+                clients[3].get_work_request.side_effect=lambda request: NS(data=results[request])
+                with self.assertRaisesRegex(ValueError,'latest OS update'):
+                    self.run_maintenance(clients)
+                clients[1].reboot_managed_instance.assert_not_called()
+
+    def test_nested_update_uses_overall_completion_and_stable_reboot_identity(self):
+        tokens=[]
+        for leaf in ['update', 'other-child']:
+            clients=self.clients()
+            clients[3].list_work_requests.side_effect=[NS(data=NS(items=[NS(id=leaf)])),NS(data=NS(items=[]))]
+            results={leaf: update_result(id=leaf,parent_id='middle'),
+                     'middle': update_result(id='middle',parent_id='root'),
+                     'root': update_result(id='root')}
+            clients[3].get_work_request.side_effect=lambda request: NS(data=results[request] if request in results else NS(status='SUCCEEDED'))
+            record=clients[1].get_managed_instance.return_value
+            clients[1].get_managed_instance.side_effect=[record,NS(data=NS(time_last_boot=NOW+timedelta(minutes=1),is_reboot_required=False))]
+            self.assertEqual(self.run_maintenance(clients),'reboot completed; HTTPS healthy')
+            tokens.append(clients[1].reboot_managed_instance.call_args.kwargs['opc_retry_token'])
+        self.assertEqual(tokens[0],tokens[1])
+
+    def test_invalid_overall_update_ancestry_fails_closed(self):
+        for change in [dict(initiator_id='other-job'),dict(compartment_id='other'),
+                       dict(operation_type='REBOOT'),dict(parent_id='update')]:
+            with self.subTest(change=change):
+                clients=self.clients()
+                results={'update': update_result(parent_id='root'),'root': update_result(id='root',**change)}
+                clients[3].get_work_request.side_effect=lambda request: NS(data=results[request])
+                with self.assertRaises(ValueError): self.run_maintenance(clients)
+                clients[1].reboot_managed_instance.assert_not_called()
+        clients=self.clients()
+        clients[3].get_work_request.side_effect=lambda request: NS(data=update_result(id=request,parent_id=request+'-parent'))
+        with self.assertRaisesRegex(ValueError,'too deep'): self.run_maintenance(clients)
+        clients[1].reboot_managed_instance.assert_not_called()
 
     def test_concurrent_job_or_bad_health_blocks_reboot(self):
         clients=self.clients();clients[3].list_work_requests.side_effect=[NS(data=NS(items=[NS(id='update')])),NS(data=NS(items=[NS(id='busy')]))]
@@ -136,7 +185,7 @@ class MaintenanceTests(unittest.TestCase):
     # seam=none; no_claim=real OCI reboot completion and public HTTPS recovery are not exercised.
     def test_failed_or_unverified_reboot_fails(self):
         for status in ['FAILED','CANCELED','IN_PROGRESS']:
-            clients=self.clients();update=NS(id='update',status='SUCCEEDED',time_finished=NOW-timedelta(minutes=40))
+            clients=self.clients();update=update_result()
             clients[3].get_work_request.side_effect=lambda request: NS(data=update if request=='update' else NS(status=status))
             with patch.object(maintenance.time,'sleep'),self.assertRaises(ValueError): self.run_maintenance(clients)
         for missing_evidence in ['new_boot', 'reboot_flag', 'https']:
@@ -163,7 +212,7 @@ class MaintenanceTests(unittest.TestCase):
                                 ({'OCI_COMPARTMENT_OCID':'other'},1)]:
             with patch.dict(os.environ,dict(env,**change),clear=True),patch.object(sys,'argv',['script']), \
                     patch.object(infrastructure,'client',return_value=({},None)), \
-                    patch.object(infrastructure,'verify_osmh_enrollment'), \
+                    patch.object(infrastructure,'verify_osmh_enrollment') as verify_enrollment, \
                     patch.object(oci.object_storage,'ObjectStorageClient',return_value=storage), \
                     patch.object(oci.core,'ComputeClient'), \
                     patch.object(oci.os_management_hub,'ManagedInstanceClient'), \
@@ -171,3 +220,7 @@ class MaintenanceTests(unittest.TestCase):
                     patch.object(oci.os_management_hub,'WorkRequestClient'), \
                     patch.object(maintenance,'maintain',return_value='no reboot required'),patch('builtins.print'):
                 self.assertEqual(maintenance.main(),expected)
+                if expected==0:
+                    resources={r['address']:r['values']['id'] for r in verify_enrollment.call_args.args[0]['planned_values']['root_module']['resources']}
+                    self.assertEqual(resources['oci_os_management_hub_software_source.vendor["ol9_ksplice-aarch64"]'],'kernel-source')
+                    self.assertEqual(resources['oci_os_management_hub_software_source.vendor["ol9_aarch64_userspace_ksplice-aarch64"]'],'userspace-source')

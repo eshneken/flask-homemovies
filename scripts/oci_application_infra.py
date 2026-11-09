@@ -47,21 +47,26 @@ def osmh_settings(env):
     return settings
 
 
+KSPLICE_SOURCES = ('ol9_ksplice-aarch64', 'ol9_aarch64_userspace_ksplice-aarch64')
+
+
 def verify_osmh_enrollment(plan, config, signer, settings):
-    """Require a previously enrolled, active VM with only the reviewed source before scheduling."""
+    """Require active enrollment with the filtered OS and reviewed Ksplice sources."""
     if settings['osmh_updates_enabled'] != 'true':
         return
     resources = {r['address']: r['values'] for r in plan.get('planned_values', {}).get('root_module', {}).get('resources', [])}
     instance = resources.get('oci_core_instance.web', {}).get('id')
     group = resources.get('oci_os_management_hub_managed_instance_group.operating_system[0]', {}).get('id')
     source = resources.get('oci_os_management_hub_software_source.operating_system[0]', {}).get('id')
-    if not all((instance, group, source)):
+    ksplice = {name: resources.get(f'oci_os_management_hub_software_source.vendor["{name}"]', {}).get('id')
+               for name in KSPLICE_SOURCES}
+    if not all((instance, group, source, *ksplice.values())):
         raise WifError('Apply preparation and registration before scheduling OS updates.')
     managed = oci.os_management_hub.ManagedInstanceClient(config, signer=signer).get_managed_instance(instance).data
     if (managed.status != 'NORMAL' or not managed.managed_instance_group
             or managed.managed_instance_group.id != group
-            or {s.id for s in (managed.software_sources or [])} != {source}):
-        raise WifError('OS update scheduling requires active registration with only the reviewed OS source.')
+            or {s.id for s in (managed.software_sources or [])} != {source, *ksplice.values()}):
+        raise WifError('OS updates require the reviewed filtered OS source and two Oracle Ksplice sources.')
     content = oci.os_management_hub.SoftwareSourceClient(config, signer=signer).get_software_source(source).data
     filters = getattr(content, 'custom_software_source_filter', None)
     if (content.software_source_type != 'CUSTOM' or not content.is_automatically_updated
@@ -69,6 +74,12 @@ def verify_osmh_enrollment(plan, config, signer, settings):
             or not any(f.filter_type == 'EXCLUDE' and f.package_name_pattern == 'caddy*'
                        for f in (filters.package_filters or []))):
         raise WifError('The live OS source must refresh automatically and explicitly exclude Caddy.')
+    for name, identifier in ksplice.items():
+        vendor = oci.os_management_hub.SoftwareSourceClient(config, signer=signer).get_software_source(identifier).data
+        if (vendor.software_source_type != 'VENDOR' or vendor.display_name != name
+                or vendor.vendor_name != 'ORACLE' or vendor.os_family != 'ORACLE_LINUX_9'
+                or vendor.arch_type != 'AARCH64'):
+            raise WifError('Only the two reviewed Oracle Linux ARM64 Ksplice vendor sources are allowed.')
 
 
 def client(env):
