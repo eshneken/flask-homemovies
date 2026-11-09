@@ -6,7 +6,7 @@ tenancy. Existing Compute/network/storage charges still apply. See
 [Oracle's FAQ](https://www.oracle.com/cloud/compute/os-management/faq/) and
 [prerequisites](https://docs.oracle.com/en-us/iaas/osmh/doc/getstarted.htm).
 
-This integration manages Oracle Linux 9 ARM64 host packages and UEK R8.
+This integration manages Oracle Linux 9 ARM64 host packages, UEK R8 and Ksplice.
 **Caddy and the Python application container are excluded.** No COPR source is
 registered. The custom source excludes `caddy*`; automatic dependency resolution
 is disabled because it can override excludes. Oracle refreshes auto-updating
@@ -44,7 +44,7 @@ or frequency variables to adjust timing. Schedules use fixed UTC, not local DST.
    management permissions cover project resources. No tenancy-wide OSMH write
    access or on-premises Management Agent keys are needed.
 2. Set only `OCI_OSMH_ENABLED=true` and apply. This creates private service-network
-   routing, five vendor-source replicas, an auto-updating custom OS source, a
+   routing, seven vendor-source replicas, an auto-updating custom OS source, a
    managed-instance group, a non-default group profile and self-only instance
    IAM. There is no management-station VM, new public IP or additional ingress.
 3. Through [managed SSH](vm-maintenance.md), verify Oracle Cloud Agent is at least
@@ -70,9 +70,10 @@ or frequency variables to adjust timing. Schedules use fixed UTC, not local DST.
 6. Set a future `OCI_OSMH_UPDATE_START` and `OCI_OSMH_UPDATES_ENABLED=true`, then
    plan/apply. The workflow checks live enrollment and source attachment before
    scheduling. It deliberately rejects applying all stages at once. The job
-   applies Security, Bugfix, Enhancement and Other package updates with three
-   retries five minutes apart. It excludes Ksplice operations explicitly; OCI's
-   `UPDATE_ALL` also requests Ksplice updates and isn't used here.
+   applies all OS package and Ksplice updates with three retries five minutes
+   apart. Verify `rpm -q ksplice` before scheduling; OCI platform images include
+   the Enhanced Client. Both Ksplice repositories are included in the filtered
+   source so userspace updates can install the required Ksplice-aware libraries.
 7. Run `home-movies-os-updates` immediately using the OCI CLI
    `os-management-hub scheduled-job run-now --scheduled-job-id <job-ocid>` and
    inspect its log. This preserves the job association used by the reboot check. Verify
@@ -84,7 +85,8 @@ or frequency variables to adjust timing. Schedules use fixed UTC, not local DST.
    Repository/environment configuration is sufficient to adjust the window.
 
 The reviewed vendor sources are BaseOS latest, AppStream, Addons, UEK R8 and OCI
-included packages for OL9 ARM64. Terraform discovers their regional identifiers.
+included packages, Ksplice and Ksplice-aware userspace packages for OL9 ARM64.
+Terraform discovers their regional identifiers.
 The group gets only the custom source, never raw vendors or third-party sources.
 
 ## Reboots and monitoring
@@ -107,8 +109,10 @@ notifications for this repository. The default 09–11 UTC window is 04–06 EST
 the reboot. Infrastructure changes, app deployment and this workflow share a
 concurrency group. No credentials are requested outside the maintenance window.
 
-Ksplice is a separate opt-in requiring its sources and client; it isn't enabled
-here. Until registration, updates and the reboot workflow are enabled, use
+Ksplice kernel and userspace updates are included, with their Oracle sources
+and the OCI Ksplice Enhanced Client. Ksplice can reduce required downtime, but
+on-disk updates and occasional reboots remain necessary. Until registration,
+updates and the reboot workflow are enabled, use
 [VM maintenance](vm-maintenance.md) for host updates/reboots.
 
 Job history and instance status are the OSMH monitoring surface. OCI notifications

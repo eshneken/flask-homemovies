@@ -56,12 +56,18 @@ class ApplicationInfrastructureTests(unittest.TestCase):
             source_api = Mock()
             source_api.get_software_source.return_value.data = NS(software_source_type='CUSTOM',
                 is_automatically_updated=True, is_auto_resolve_dependencies=False,
+                vendor_software_sources=[NS(display_name=name) for name in
+                    ['ol9_ksplice-aarch64', 'ol9_aarch64_userspace_ksplice-aarch64']],
                 custom_software_source_filter=NS(package_filters=[NS(filter_type='EXCLUDE', package_name_pattern='caddy*')]))
             with patch.object(infrastructure.oci.os_management_hub, 'ManagedInstanceClient', return_value=api), \
                     patch.object(infrastructure.oci.os_management_hub, 'SoftwareSourceClient', return_value=source_api):
                 if passed:
                     infrastructure.verify_osmh_enrollment(plan, {}, None, settings)
                     source_api.get_software_source.return_value.data.is_auto_resolve_dependencies = True
+                    with self.assertRaises(WifError):
+                        infrastructure.verify_osmh_enrollment(plan, {}, None, settings)
+                    source_api.get_software_source.return_value.data.is_auto_resolve_dependencies = False
+                    source_api.get_software_source.return_value.data.vendor_software_sources.pop()
                     with self.assertRaises(WifError):
                         infrastructure.verify_osmh_enrollment(plan, {}, None, settings)
                 else:

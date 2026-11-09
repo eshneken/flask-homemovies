@@ -45,11 +45,11 @@ run "prepare_os_only_content" {
   command = plan
   variables { osmh_enabled = true }
   assert {
-    condition     = length(oci_os_management_hub_software_source.vendor) == 5 && oci_os_management_hub_software_source.operating_system[0].software_source_type == "CUSTOM"
+    condition     = length(oci_os_management_hub_software_source.vendor) == 7 && oci_os_management_hub_software_source.operating_system[0].software_source_type == "CUSTOM"
     error_message = "Prepare only the reviewed Oracle OS repositories, never Caddy COPR."
   }
   assert {
-    condition     = length(oci_os_management_hub_software_source.operating_system[0].vendor_software_sources) == 5 && alltrue([for source in oci_os_management_hub_software_source.operating_system[0].vendor_software_sources : source.display_name == "test-vendor-name"])
+    condition     = length(oci_os_management_hub_software_source.operating_system[0].vendor_software_sources) == 7 && alltrue([for source in oci_os_management_hub_software_source.operating_system[0].vendor_software_sources : source.display_name == "test-vendor-name"])
     error_message = "OCI requires each custom-source vendor reference to include its display name as well as its ID."
   }
   assert {
@@ -93,7 +93,7 @@ run "daily_updates_without_unconditional_reboots" {
     osmh_update_start      = "2030-01-01T08:00:00Z"
   }
   assert {
-    condition     = oci_os_management_hub_scheduled_job.operating_system[0].recurring_rule == "FREQ=DAILY;INTERVAL=1;BYHOUR=8;BYMINUTE=0;BYSECOND=0" && sort([for operation in oci_os_management_hub_scheduled_job.operating_system[0].operations : operation.operation_type]) == sort(["UPDATE_SECURITY", "UPDATE_BUGFIX", "UPDATE_ENHANCEMENT", "UPDATE_OTHER"]) && oci_os_management_hub_scheduled_job.operating_system[0].retry_intervals == tolist([5, 5, 5])
+    condition     = oci_os_management_hub_scheduled_job.operating_system[0].recurring_rule == "FREQ=DAILY;INTERVAL=1;BYHOUR=8;BYMINUTE=0;BYSECOND=0" && one(oci_os_management_hub_scheduled_job.operating_system[0].operations).operation_type == "UPDATE_ALL" && oci_os_management_hub_scheduled_job.operating_system[0].retry_intervals == tolist([5, 5, 5])
     error_message = "Schedule all OS updates with retries, without implicitly rebooting the VM."
   }
 }
@@ -122,5 +122,11 @@ run "reject_missing_schedule_start" {
 run "reject_caddy_or_wrong_architecture_source" {
   command = plan
   variables { osmh_vendor_sources = ["caddy-copr", "ol9_uekr8-x86_64"] }
+  expect_failures = [var.osmh_vendor_sources]
+}
+
+run "reject_ksplice_without_required_content" {
+  command = plan
+  variables { osmh_vendor_sources = ["ol9_baseos_latest-aarch64", "ol9_appstream-aarch64", "ol9_uekr8-aarch64"] }
   expect_failures = [var.osmh_vendor_sources]
 }

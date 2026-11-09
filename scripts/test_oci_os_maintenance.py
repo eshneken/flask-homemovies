@@ -35,7 +35,7 @@ class MaintenanceTests(unittest.TestCase):
             compartment_id='compartment', status='NORMAL', is_reboot_required=True,
             time_last_boot=NOW-timedelta(days=2)))
         jobs.get_scheduled_job.return_value.data = NS(compartment_id='compartment', managed_instance_ids=['vm'],
-            managed_instance_group_ids=[], managed_compartment_ids=[], operations=[NS(operation_type=operation) for operation in maintenance.OS_UPDATE_OPERATIONS])
+            managed_instance_group_ids=[], managed_compartment_ids=[], operations=[NS(operation_type='UPDATE_ALL')])
         work.list_work_requests.side_effect = [NS(data=NS(items=[NS(id='update')])), NS(data=NS(items=[]))]
         update = update_result()
         work.get_work_request.side_effect = lambda request: NS(data=update if request == 'update' else NS(status='SUCCEEDED'))
@@ -89,9 +89,8 @@ class MaintenanceTests(unittest.TestCase):
         for key,value in [('compartment_id','other'), ('managed_instance_ids',['other']),
                           ('managed_instance_group_ids',['group']), ('managed_compartment_ids',['compartment']),
                           ('operations',[NS(operation_type='REBOOT')]),
-                          ('operations',[NS(operation_type='UPDATE_ALL')]),
-                          ('operations',[NS(operation_type=operation) for operation in maintenance.OS_UPDATE_OPERATIONS[:-1]]),
-                          ('operations',[NS(operation_type=operation) for operation in (*maintenance.OS_UPDATE_OPERATIONS,'UPDATE_KSPLICE_USERSPACE')])]:
+                          ('operations',[]),
+                                                    ('operations',[NS(operation_type='UPDATE_ALL'),NS(operation_type='UPDATE_KSPLICE_USERSPACE')])]:
             clients=self.clients();setattr(clients[2].get_scheduled_job.return_value.data,key,value)
             with self.assertRaises(ValueError): self.run_maintenance(clients)
 

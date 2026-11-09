@@ -69,6 +69,9 @@ def verify_osmh_enrollment(plan, config, signer, settings):
             or not any(f.filter_type == 'EXCLUDE' and f.package_name_pattern == 'caddy*'
                        for f in (filters.package_filters or []))):
         raise WifError('The live OS source must refresh automatically and explicitly exclude Caddy.')
+    if not {'ol9_ksplice-aarch64', 'ol9_aarch64_userspace_ksplice-aarch64'} <= {
+            source.display_name for source in (content.vendor_software_sources or [])}:
+        raise WifError('Prepare both Oracle Ksplice sources before scheduling all OS updates.')
 
 
 def client(env):

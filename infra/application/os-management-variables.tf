@@ -30,12 +30,13 @@ variable "osmh_vendor_sources" {
   default = [
     "ol9_baseos_latest-aarch64", "ol9_appstream-aarch64", "ol9_addons-aarch64",
     "ol9_uekr8-aarch64", "ol9_oci_included-aarch64",
+    "ol9_ksplice-aarch64", "ol9_aarch64_userspace_ksplice-aarch64",
   ]
   validation {
     condition = (alltrue([for source in var.osmh_vendor_sources :
-      contains(["ol9_baseos_latest-aarch64", "ol9_appstream-aarch64", "ol9_addons-aarch64", "ol9_uekr8-aarch64", "ol9_oci_included-aarch64"], source)
-    ]) && alltrue([for source in ["ol9_baseos_latest-aarch64", "ol9_appstream-aarch64", "ol9_uekr8-aarch64"] : contains(var.osmh_vendor_sources, source)]))
-    error_message = "Use reviewed OL9 ARM64 vendor sources including BaseOS latest, AppStream and UEK R8."
+      contains(["ol9_baseos_latest-aarch64", "ol9_appstream-aarch64", "ol9_addons-aarch64", "ol9_uekr8-aarch64", "ol9_oci_included-aarch64", "ol9_ksplice-aarch64", "ol9_aarch64_userspace_ksplice-aarch64"], source)
+    ]) && alltrue([for source in ["ol9_baseos_latest-aarch64", "ol9_appstream-aarch64", "ol9_uekr8-aarch64", "ol9_ksplice-aarch64", "ol9_aarch64_userspace_ksplice-aarch64"] : contains(var.osmh_vendor_sources, source)]))
+    error_message = "Use reviewed OL9 ARM64 sources including BaseOS, AppStream, UEK R8 and both Ksplice sources."
   }
 }
 

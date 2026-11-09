@@ -102,11 +102,8 @@ resource "oci_os_management_hub_scheduled_job" "operating_system" {
   recurring_rule       = "${var.osmh_update_recurring_rule};BYHOUR=${var.osmh_update_hour_utc};BYMINUTE=${var.osmh_update_minute_utc};BYSECOND=0"
   time_next_execution  = var.osmh_update_start
   retry_intervals      = [5, 5, 5]
-  # UPDATE_ALL also requests Ksplice, whose separate content/client isn't enabled.
-  dynamic "operations" {
-    for_each = toset(["UPDATE_SECURITY", "UPDATE_BUGFIX", "UPDATE_ENHANCEMENT", "UPDATE_OTHER"])
-    content { operation_type = operations.value }
-  }
+  # Both Ksplice repositories are included in the filtered custom source.
+  operations { operation_type = "UPDATE_ALL" }
   # The service advances this after every execution. Do not reset it to the
   # original start on unrelated applies; change hours/minutes via the rule.
   lifecycle { ignore_changes = [time_next_execution] }
