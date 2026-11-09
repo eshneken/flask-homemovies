@@ -24,6 +24,50 @@ METADATA = dict(vault_ocid='test-vault', vault_key_ocid='test-key', runtime_dyna
 
 
 class ApplicationInfrastructureTests(unittest.TestCase):
+    def test_osmh_requires_explicit_ordered_opt_in(self):
+        settings = infrastructure.osmh_settings({})
+        self.assertEqual(settings['osmh_enabled'], 'false')
+        self.assertNotIn('osmh_update_start', settings)
+        for env in ({'OCI_OSMH_ENABLED': 'yes'}, {'OCI_OSMH_REGISTER_INSTANCE': 'true'},
+                    {'OCI_OSMH_UPDATES_ENABLED': 'true'}):
+            with self.assertRaises(WifError):
+                infrastructure.osmh_settings(env)
+        settings = infrastructure.osmh_settings(dict(OCI_OSMH_ENABLED='true', OCI_OSMH_REGISTER_INSTANCE='true',
+                                                     OCI_OSMH_UPDATES_ENABLED='true', OCI_OSMH_UPDATE_START='2030-01-01T08:00:00Z'))
+        self.assertEqual(settings['osmh_update_start'], '2030-01-01T08:00:00Z')
+
+    def test_osmh_schedule_requires_live_active_os_only_enrollment(self):
+        addresses = {'oci_core_instance.web': 'vm',
+                     'oci_os_management_hub_managed_instance_group.operating_system[0]': 'group',
+                     'oci_os_management_hub_software_source.operating_system[0]': 'os-source'}
+        plan = {'planned_values': {'root_module': {'resources': [
+            {'address': a, 'values': {'id': v}} for a, v in addresses.items()]}}}
+        settings = dict(osmh_updates_enabled='true')
+        with self.assertRaises(WifError):
+            infrastructure.verify_osmh_enrollment({}, {}, None, settings)
+        for status, group, sources, passed in [
+                ('NORMAL', 'group', ['os-source'], True), ('UNREACHABLE', 'group', ['os-source'], False),
+                ('NORMAL', 'other', ['os-source'], False), ('NORMAL', None, ['os-source'], False),
+                ('NORMAL', 'group', ['os-source', 'caddy-source'], False)]:
+            api = Mock()
+            api.get_managed_instance.return_value.data = NS(status=status,
+                managed_instance_group=NS(id=group) if group else None,
+                software_sources=[NS(id=s) for s in sources])
+            source_api = Mock()
+            source_api.get_software_source.return_value.data = NS(software_source_type='CUSTOM',
+                is_automatically_updated=True, is_auto_resolve_dependencies=False,
+                custom_software_source_filter=NS(package_filters=[NS(filter_type='EXCLUDE', package_name_pattern='caddy*')]))
+            with patch.object(infrastructure.oci.os_management_hub, 'ManagedInstanceClient', return_value=api), \
+                    patch.object(infrastructure.oci.os_management_hub, 'SoftwareSourceClient', return_value=source_api):
+                if passed:
+                    infrastructure.verify_osmh_enrollment(plan, {}, None, settings)
+                    source_api.get_software_source.return_value.data.is_auto_resolve_dependencies = True
+                    with self.assertRaises(WifError):
+                        infrastructure.verify_osmh_enrollment(plan, {}, None, settings)
+                else:
+                    with self.assertRaises(WifError):
+                        infrastructure.verify_osmh_enrollment(plan, {}, None, settings)
+
     def test_client_reads_ephemeral_profile(self):
         """Verify client reads ephemeral profile."""
         with tempfile.TemporaryDirectory() as root:
@@ -36,8 +80,16 @@ class ApplicationInfrastructureTests(unittest.TestCase):
                 self.assertEqual(infrastructure.client({'OCI_CONFIG_FILE': str(Path(root) / 'config')})[0], config)
                 self.assertEqual(signer.call_args.args[0], 'test-token')
 
+    # Value: protects=OSMH configuration reaches Terraform without changing plan/apply boundaries;
+    # fails_when=enabled flags or schedule values are dropped from TF_VAR forwarding;
+    # why_new=the previous run test used only disabled defaults; seam=none;
+    # no_claim=Terraform provider acceptance and live registration remain rollout checks.
     def test_plan_is_read_only_and_apply_uses_saved_plan_and_private_outputs(self):
         """Verify plan is read only and apply uses saved plan and private outputs."""
+        osmh_values = dict(OCI_OSMH_ENABLED='true', OCI_OSMH_REGISTER_INSTANCE='true',
+                           OCI_OSMH_UPDATES_ENABLED='false', OCI_OSMH_UPDATE_START='2030-01-01T06:17:00Z',
+                           OCI_OSMH_UPDATE_RECURRING_RULE='FREQ=WEEKLY;INTERVAL=1',
+                           OCI_OSMH_UPDATE_HOUR_UTC='6', OCI_OSMH_UPDATE_MINUTE_UTC='17')
         for operation in ('plan', 'apply'):
             with tempfile.TemporaryDirectory() as temporary:
                 root, work = Path(temporary) / 'source', Path(temporary) / 'work'
@@ -62,13 +114,15 @@ class ApplicationInfrastructureTests(unittest.TestCase):
                         patch.object(infrastructure, 'bucket_exists', return_value=True), \
                         patch.object(infrastructure, 'read_metadata', return_value=METADATA), \
                         patch.object(infrastructure, 'terraform', side_effect=terraform):
-                    self.assertEqual(infrastructure.run(ENV, root, work, operation)['creates'], 1)
+                    self.assertEqual(infrastructure.run(dict(ENV, **osmh_values), root, work, operation)['creates'], 1)
                 self.assertTrue((work / 'scripts' / 'vm_deploy.py').exists())
                 backend = json.loads((work / 'backend.json').read_text())
                 self.assertEqual(backend['key'], 'application/terraform.tfstate')
                 self.assertEqual(backend['auth'], 'SecurityToken')
                 self.assertEqual((work / 'backend.json').stat().st_mode & 0o777, 0o600)
                 self.assertEqual(calls[0][2]['TF_VAR_runtime_dynamic_group_ocid'], 'test-group')
+                for environment_name, value in osmh_values.items():
+                    self.assertEqual(calls[0][2]['TF_VAR_' + environment_name.removeprefix('OCI_').lower()], value)
                 self.assertEqual(json.loads(calls[0][2]['TF_VAR_bastion_client_cidrs']),
                                  ['192.0.2.1/32', '198.51.100.0/23', '203.0.112.0/20'])
                 self.assertNotIn('TF_VAR_PASSWORD_HASH', calls[0][2])

@@ -22,7 +22,7 @@ run "separate_scoped_authorities" {
     error_message = "No permanent tenancy-wide workload authority is allowed."
   }
   assert {
-    condition     = length(oci_identity_policy.automation.statements) == 7
+    condition     = length(oci_identity_policy.automation.statements) == 9
     error_message = "Review additions to automation permissions explicitly."
   }
   assert {

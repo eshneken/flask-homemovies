@@ -33,7 +33,17 @@ resource "oci_core_instance" "web" {
       name          = "Compute Instance Run Command"
       desired_state = "ENABLED"
     }
+    dynamic "plugins_config" {
+      for_each = var.osmh_enabled ? [1] : []
+      content {
+        name          = "OS Management Hub Agent"
+        desired_state = var.osmh_register_instance ? "ENABLED" : "DISABLED"
+      }
+    }
   }
+  freeform_tags = var.osmh_register_instance ? {
+    OsmhProfile = oci_os_management_hub_profile.operating_system[0].id
+  } : {}
   metadata = {
     user_data = base64encode(templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
       hostname          = var.hostname
