@@ -62,7 +62,8 @@ or frequency variables to adjust timing. Schedules use fixed UTC, not local DST.
    `OsmhProfile` tag and enables the OS Management Hub Agent plugin. Bastion,
    Run Command, private addressing and mandatory IMDSv2 remain configured.
    Wait up to ten minutes; in **OS Management Hub → Instances**, verify Active,
-   the Home Movies group, and only the filtered OS source.
+   the Home Movies group, the filtered OS source and the two named Oracle
+   Ksplice sources.
 5. If the existing VM doesn't pick up the profile tag, choose this project's
    profile explicitly under **Compute → instance → Management → Oracle Cloud
    Agent → OS Management Hub Agent**. Don't choose a default profile that could
@@ -72,8 +73,9 @@ or frequency variables to adjust timing. Schedules use fixed UTC, not local DST.
    scheduling. It deliberately rejects applying all stages at once. The job
    applies all OS package and Ksplice updates with three retries five minutes
    apart. Verify `rpm -q ksplice` before scheduling; OCI platform images include
-   the Enhanced Client. Both Ksplice repositories are included in the filtered
-   source so userspace updates can install the required Ksplice-aware libraries.
+   the Enhanced Client. Both named Oracle Ksplice repositories are attached
+   alongside the filtered OS source so the client can resolve its native
+   repository IDs and install Ksplice-aware libraries.
 7. Run `home-movies-os-updates` immediately using the OCI CLI
    `os-management-hub scheduled-job run-now --scheduled-job-id <job-ocid>` and
    inspect its log. This preserves the job association used by the reboot check. Verify
@@ -87,7 +89,11 @@ or frequency variables to adjust timing. Schedules use fixed UTC, not local DST.
 The reviewed vendor sources are BaseOS latest, AppStream, Addons, UEK R8 and OCI
 included packages, Ksplice and Ksplice-aware userspace packages for OL9 ARM64.
 Terraform discovers their regional identifiers.
-The group gets only the custom source, never raw vendors or third-party sources.
+The group gets the filtered custom OS source plus the two named Oracle Ksplice
+repositories. No third-party source is attached. Before scheduling or rebooting,
+the workflow verifies this exact source set and both Ksplice sources' Oracle
+vendor, OL9 release and ARM64 architecture. Caddy remains excluded by the custom
+source filter and the local DNF exclusion.
 
 ## Reboots and monitoring
 

@@ -1,4 +1,8 @@
 mock_provider "oci" {
+  mock_resource "oci_os_management_hub_managed_instance_group" {
+    defaults        = { id = "test-os-group" }
+    override_during = plan
+  }
   mock_resource "oci_os_management_hub_software_source" {
     defaults        = { display_name = "test-vendor-name" }
     override_during = plan
@@ -49,8 +53,12 @@ run "prepare_os_only_content" {
     error_message = "Prepare only the reviewed Oracle OS repositories, never Caddy COPR."
   }
   assert {
-    condition     = length(oci_os_management_hub_software_source.operating_system[0].vendor_software_sources) == 7 && alltrue([for source in oci_os_management_hub_software_source.operating_system[0].vendor_software_sources : source.display_name == "test-vendor-name"])
+    condition     = length(oci_os_management_hub_software_source.operating_system[0].vendor_software_sources) == 5 && alltrue([for source in oci_os_management_hub_software_source.operating_system[0].vendor_software_sources : source.display_name == "test-vendor-name"])
     error_message = "OCI requires each custom-source vendor reference to include its display name as well as its ID."
+  }
+  assert {
+    condition     = oci_os_management_hub_managed_instance_group.operating_system[0].software_source_ids == tolist([oci_os_management_hub_software_source.operating_system[0].id]) && toset(oci_os_management_hub_managed_instance_group_attach_software_sources_management.ksplice[0].software_sources) == toset([for name in ["ol9_ksplice-aarch64", "ol9_aarch64_userspace_ksplice-aarch64"] : oci_os_management_hub_software_source.vendor[name].id]) && oci_os_management_hub_managed_instance_group_attach_software_sources_management.ksplice[0].managed_instance_group_id == oci_os_management_hub_managed_instance_group.operating_system[0].id
+    error_message = "Attach only the filtered OS source and the two named Oracle Ksplice repositories."
   }
   assert {
     condition     = oci_os_management_hub_software_source.operating_system[0].is_automatically_updated && !oci_os_management_hub_software_source.operating_system[0].is_auto_resolve_dependencies && one(oci_os_management_hub_software_source.operating_system[0].custom_software_source_filter[0].package_filters).filter_type == "EXCLUDE" && one(oci_os_management_hub_software_source.operating_system[0].custom_software_source_filter[0].package_filters).package_name_pattern == "caddy*"

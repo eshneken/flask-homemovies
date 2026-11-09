@@ -17,7 +17,8 @@ import oci_os_maintenance as maintenance
 NOW = datetime(2030, 1, 2, 9, 23, tzinfo=timezone.utc)
 ENV = dict(APP_HOSTNAME='movies.example.com', OCI_OSMH_REBOOT_ENABLED='true', OCI_OSMH_UPDATES_ENABLED='true')
 OUTPUTS = dict(instance_ocid='vm', compartment_ocid='compartment', osmh_group_ocid='group',
-               osmh_source_ocid='source', osmh_update_job_ocid='job')
+               osmh_source_ocid='source', osmh_update_job_ocid='job', osmh_ksplice_source_ocids={
+                   'ol9_ksplice-aarch64':'kernel-source','ol9_aarch64_userspace_ksplice-aarch64':'userspace-source'})
 
 
 def update_result(**changes):
@@ -90,7 +91,7 @@ class MaintenanceTests(unittest.TestCase):
                           ('managed_instance_group_ids',['group']), ('managed_compartment_ids',['compartment']),
                           ('operations',[NS(operation_type='REBOOT')]),
                           ('operations',[]),
-                                                    ('operations',[NS(operation_type='UPDATE_ALL'),NS(operation_type='UPDATE_KSPLICE_USERSPACE')])]:
+                          ('operations',[NS(operation_type='UPDATE_ALL'),NS(operation_type='UPDATE_KSPLICE_USERSPACE')])]:
             clients=self.clients();setattr(clients[2].get_scheduled_job.return_value.data,key,value)
             with self.assertRaises(ValueError): self.run_maintenance(clients)
 
@@ -211,7 +212,7 @@ class MaintenanceTests(unittest.TestCase):
                                 ({'OCI_COMPARTMENT_OCID':'other'},1)]:
             with patch.dict(os.environ,dict(env,**change),clear=True),patch.object(sys,'argv',['script']), \
                     patch.object(infrastructure,'client',return_value=({},None)), \
-                    patch.object(infrastructure,'verify_osmh_enrollment'), \
+                    patch.object(infrastructure,'verify_osmh_enrollment') as verify_enrollment, \
                     patch.object(oci.object_storage,'ObjectStorageClient',return_value=storage), \
                     patch.object(oci.core,'ComputeClient'), \
                     patch.object(oci.os_management_hub,'ManagedInstanceClient'), \
@@ -219,3 +220,7 @@ class MaintenanceTests(unittest.TestCase):
                     patch.object(oci.os_management_hub,'WorkRequestClient'), \
                     patch.object(maintenance,'maintain',return_value='no reboot required'),patch('builtins.print'):
                 self.assertEqual(maintenance.main(),expected)
+                if expected==0:
+                    resources={r['address']:r['values']['id'] for r in verify_enrollment.call_args.args[0]['planned_values']['root_module']['resources']}
+                    self.assertEqual(resources['oci_os_management_hub_software_source.vendor["ol9_ksplice-aarch64"]'],'kernel-source')
+                    self.assertEqual(resources['oci_os_management_hub_software_source.vendor["ol9_aarch64_userspace_ksplice-aarch64"]'],'userspace-source')

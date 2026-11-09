@@ -143,7 +143,9 @@ def main():
             {'address': address, 'values': {'id': outputs[key]}} for address, key in [
                 ('oci_core_instance.web', 'instance_ocid'),
                 ('oci_os_management_hub_managed_instance_group.operating_system[0]', 'osmh_group_ocid'),
-                ('oci_os_management_hub_software_source.operating_system[0]', 'osmh_source_ocid')]]}}}
+                ('oci_os_management_hub_software_source.operating_system[0]', 'osmh_source_ocid')]] + [
+            {'address': f'oci_os_management_hub_software_source.vendor["{name}"]', 'values': {'id': identifier}}
+            for name, identifier in outputs.get('osmh_ksplice_source_ocids', {}).items()]}}}
         verify_osmh_enrollment(plan, config, signer, {'osmh_updates_enabled': 'true'})
         result = maintain(env, outputs, oci.core.ComputeClient(config, signer=signer),
             oci.os_management_hub.ManagedInstanceClient(config, signer=signer),
