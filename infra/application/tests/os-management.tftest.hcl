@@ -1,4 +1,8 @@
 mock_provider "oci" {
+  mock_resource "oci_os_management_hub_software_source" {
+    defaults        = { display_name = "test-vendor-name" }
+    override_during = plan
+  }
   mock_data "oci_os_management_hub_software_sources" {
     defaults = { software_source_collection = [{ items = [{ id = "test-vendor-source" }] }] }
   }
@@ -43,6 +47,10 @@ run "prepare_os_only_content" {
   assert {
     condition     = length(oci_os_management_hub_software_source.vendor) == 5 && oci_os_management_hub_software_source.operating_system[0].software_source_type == "CUSTOM"
     error_message = "Prepare only the reviewed Oracle OS repositories, never Caddy COPR."
+  }
+  assert {
+    condition     = length(oci_os_management_hub_software_source.operating_system[0].vendor_software_sources) == 5 && alltrue([for source in oci_os_management_hub_software_source.operating_system[0].vendor_software_sources : source.display_name == "test-vendor-name"])
+    error_message = "OCI requires each custom-source vendor reference to include its display name as well as its ID."
   }
   assert {
     condition     = oci_os_management_hub_software_source.operating_system[0].is_automatically_updated && !oci_os_management_hub_software_source.operating_system[0].is_auto_resolve_dependencies && one(oci_os_management_hub_software_source.operating_system[0].custom_software_source_filter[0].package_filters).filter_type == "EXCLUDE" && one(oci_os_management_hub_software_source.operating_system[0].custom_software_source_filter[0].package_filters).package_name_pattern == "caddy*"
