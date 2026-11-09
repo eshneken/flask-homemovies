@@ -1,5 +1,9 @@
 # Private VM access through OCI Bastion
 
+For automated Oracle Linux host patching, see [OS Management Hub](os-management.md).
+Its patch jobs exclude Caddy; a separate opt-in workflow reboots only when needed
+after successful patching, within the configured overnight window.
+
 Terraform creates the Bastion service in the application compartment; you create
 an expiring **session** when you need access. There is no extra bastion VM.
 The app VM has no public IP and permits SSH only from the Bastion private endpoint.

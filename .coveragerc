@@ -8,6 +8,7 @@ source =
     mask_configuration
     oci_application_infra
     oci_app_deploy
+    oci_os_maintenance
     check_mp4_prefixes
 
 [report]

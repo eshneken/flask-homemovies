@@ -64,6 +64,9 @@ jobs:
         run: docker logout ghcr.io
   deploy:
     needs: build
+    concurrency:
+      group: home-movies-infrastructure
+      cancel-in-progress: false
     if: vars.ENABLE_HOME_MOVIES_APP_DEPLOY == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20

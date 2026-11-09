@@ -34,6 +34,19 @@ def jwt(**changes):
 
 
 class WifTests(unittest.TestCase):
+    def test_scheduled_identity_is_only_for_main_maintenance_workflow(self):
+        env = dict(environment(), GITHUB_REF='refs/heads/main', GITHUB_EVENT_NAME='schedule',
+                   HM_GITHUB_ENVIRONMENT='homemovies-infrastructure')
+        claims = dict(ref='refs/heads/main', sub='repo:example/home-movies:environment:homemovies-infrastructure',
+                      workflow_ref='example/home-movies/.github/workflows/oci-os-maintenance.yml@refs/heads/main')
+        wif.validate_claims(jwt(**claims), env, 1000)
+        for change in ({'workflow_ref': 'example/home-movies/.github/workflows/other.yml@refs/heads/main'},
+                       {'ref': 'refs/heads/feature'}, {'workflow_ref': None}):
+            with self.assertRaises(wif.WifError):
+                wif.validate_claims(jwt(**dict(claims, **change)), env, 1000)
+        with self.assertRaises(wif.WifError):
+            wif.validate_claims(jwt(**claims), dict(env, HM_GITHUB_ENVIRONMENT='homemovies-production'), 1000)
+
     def test_required_values_reject_config_injection(self):
         """Verify required values reject config injection."""
         self.assertEqual(wif.require({'A': 'valid'}, 'A'), 'valid')
