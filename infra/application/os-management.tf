@@ -30,7 +30,10 @@ resource "oci_os_management_hub_software_source" "operating_system" {
   is_auto_resolve_dependencies = false
   dynamic "vendor_software_sources" {
     for_each = oci_os_management_hub_software_source.vendor
-    content { id = vendor_software_sources.value.id }
+    content {
+      id           = vendor_software_sources.value.id
+      display_name = vendor_software_sources.value.display_name
+    }
   }
   custom_software_source_filter {
     package_filters {
