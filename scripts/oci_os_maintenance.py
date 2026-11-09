@@ -8,6 +8,8 @@ import time
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+OS_UPDATE_OPERATIONS = ('UPDATE_SECURITY', 'UPDATE_BUGFIX', 'UPDATE_ENHANCEMENT', 'UPDATE_OTHER')
+
 
 def in_window(env, now):
     """Use a bounded UTC maintenance window, including windows across midnight."""
@@ -56,14 +58,14 @@ def maintain(env, outputs, compute, managed, jobs, work, reboot_details, now):
     job = jobs.get_scheduled_job(job_id).data
     if (job.compartment_id != compartment or job.managed_instance_ids != [instance_id]
             or job.managed_instance_group_ids or job.managed_compartment_ids
-            or [o.operation_type for o in job.operations] != ['UPDATE_ALL']):
+            or sorted(o.operation_type for o in job.operations) != sorted(OS_UPDATE_OPERATIONS)):
         raise ValueError('The patch job must target only the configured VM and OS updates.')
     requests = work.list_work_requests(compartment_id=compartment, resource_id=instance_id,
         initiator_id=job_id, sort_by='timeCreated', sort_order='DESC', limit=1).data.items
     if not requests:
         return 'waiting for first update job'
     update = work.get_work_request(requests[0].id).data
-    # OCI expands UPDATE_ALL into nested package/Ksplice work requests. Resolve
+    # OCI expands scheduled updates into nested work requests. Resolve
     # the overall execution so one successful child cannot authorize a reboot.
     seen = {requests[0].id}
     for _ in range(10):

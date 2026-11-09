@@ -1,0 +1,2 @@
+# Restore published container ports after host package transactions.
+*:in:if /usr/bin/systemctl is-active --quiet home-movies; then /usr/bin/podman network reload home-movies >/dev/null && /usr/bin/logger -t home-movies-os-update "Reloaded application container networking"; fi

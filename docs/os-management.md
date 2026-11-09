@@ -52,6 +52,12 @@ or frequency variables to adjust timing. Schedules use fixed UTC, not local DST.
    As an additional safeguard, add `caddy*` to `[main]` `excludepkgs` in
    `/etc/dnf/dnf.conf`, preserving any existing exclusions. Check for a competing
    `dnf-automatic` updater; don't disable Oracle Cloud Agent's own updater.
+   Install `python3-dnf-plugin-post-transaction-actions` and copy
+   `infra/application/templates/home-movies-network.action` to
+   `/etc/dnf/plugins/post-transaction-actions.d/home-movies-network.action`
+   as root with mode 0644. New instances receive it through cloud-init. This
+   reloads only the application's container networking after RPM transactions,
+   restoring published ports if a package update clears Podman's firewall rules.
 4. Set `OCI_OSMH_REGISTER_INSTANCE=true` and apply. The VM receives the
    `OsmhProfile` tag and enables the OS Management Hub Agent plugin. Bastion,
    Run Command, private addressing and mandatory IMDSv2 remain configured.
@@ -64,7 +70,9 @@ or frequency variables to adjust timing. Schedules use fixed UTC, not local DST.
 6. Set a future `OCI_OSMH_UPDATE_START` and `OCI_OSMH_UPDATES_ENABLED=true`, then
    plan/apply. The workflow checks live enrollment and source attachment before
    scheduling. It deliberately rejects applying all stages at once. The job
-   applies all OS update categories with three retries five minutes apart.
+   applies Security, Bugfix, Enhancement and Other package updates with three
+   retries five minutes apart. It excludes Ksplice operations explicitly; OCI's
+   `UPDATE_ALL` also requests Ksplice updates and isn't used here.
 7. Run `home-movies-os-updates` immediately using the OCI CLI
    `os-management-hub scheduled-job run-now --scheduled-job-id <job-ocid>` and
    inspect its log. This preserves the job association used by the reboot check. Verify
@@ -86,10 +94,9 @@ conditional reboot workflow uses short-lived GitHub/OCI federation and reads
 private Terraform outputs rather than hardcoded instance identifiers. It requires
 an active instance, the reviewed Caddy-excluding source, a reboot-required flag,
 and a recent successful execution of this VM's OS update job. Failed, running or
-stale updates defer the reboot. It also checks for active OSMH operations and
-follows child work requests to the overall scheduled execution before accepting
-its success. It checks
-public HTTPS health, rechecks the window immediately before submitting, and uses
+stale updates defer the reboot. It follows child work requests to the overall
+scheduled execution before accepting its success. It checks for active OSMH
+operations and public HTTPS health, rechecks the window before submitting, and uses
 an ETag and stable retry token to avoid conflicting or duplicate requests.
 
 After submitting a managed reboot, it waits for the reboot job to succeed, a new
