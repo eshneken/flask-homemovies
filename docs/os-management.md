@@ -87,6 +87,8 @@ private Terraform outputs rather than hardcoded instance identifiers. It require
 an active instance, the reviewed Caddy-excluding source, a reboot-required flag,
 and a recent successful execution of this VM's OS update job. Failed, running or
 stale updates defer the reboot. It also checks for active OSMH operations and
+follows child work requests to the overall scheduled execution before accepting
+its success. It checks
 public HTTPS health, rechecks the window immediately before submitting, and uses
 an ETag and stable retry token to avoid conflicting or duplicate requests.
 

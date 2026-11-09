@@ -63,6 +63,22 @@ def maintain(env, outputs, compute, managed, jobs, work, reboot_details, now):
     if not requests:
         return 'waiting for first update job'
     update = work.get_work_request(requests[0].id).data
+    # OCI expands UPDATE_ALL into nested package/Ksplice work requests. Resolve
+    # the overall execution so one successful child cannot authorize a reboot.
+    seen = {requests[0].id}
+    for _ in range(10):
+        if update.compartment_id != compartment or update.initiator_id != job_id:
+            raise ValueError('The OS update execution belongs to a different job or compartment.')
+        if not update.parent_id:
+            break
+        if update.parent_id in seen:
+            raise ValueError('The OS update execution has a cyclic parent chain.')
+        seen.add(update.parent_id)
+        update = work.get_work_request(update.parent_id).data
+    else:
+        raise ValueError('The OS update execution parent chain is too deep.')
+    if update.operation_type != 'UPDATE_ALL_PACKAGES':
+        raise ValueError('The overall execution must be an OS package update.')
     if update.status != 'SUCCEEDED' or not update.time_finished:
         raise ValueError('The latest OS update has not succeeded; reboot deferred.')
     age = now - update.time_finished
